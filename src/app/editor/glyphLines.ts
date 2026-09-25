@@ -57,13 +57,30 @@ const widths = new Map<string, number>();
 
 function markerWidth(view: EditorView, marker: string): number {
   const style = getComputedStyle(view.contentDOM);
-  const key = `${style.fontFamily}|${style.fontSize}|${style.fontWeight}|${style.letterSpacing}|${marker}`;
+  // Ticked or not, a box is the same width: one measure for both.
+  const key = `${style.fontFamily}|${style.fontSize}|${style.fontWeight}|${style.letterSpacing}|${marker.replace(/\[[xX]\]/, '[ ]')}`;
   const known = widths.get(key);
   if (known !== undefined) return known;
   const ruler = document.createElement('span');
   ruler.setAttribute('aria-hidden', 'true');
-  Object.assign(ruler.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre', insetInlineStart: '0', insetBlockStart: '0', pointerEvents: 'none' });
-  ruler.textContent = marker;
+  Object.assign(ruler.style, {
+    position: 'absolute',
+    visibility: 'hidden',
+    whiteSpace: 'pre',
+    insetInlineStart: '0',
+    insetBlockStart: '0',
+    pointerEvents: 'none',
+  });
+  // A to-do's box is set in the monospace face (Editor.module.css `.taskMarker`), so `[ ]` and `[x]` are one width.
+  const box = /\[[ xX]\]/.exec(marker);
+  if (box) {
+    const drawn = document.createElement('span');
+    drawn.className = styles.taskMarker ?? '';
+    drawn.textContent = box[0];
+    ruler.append(marker.slice(0, box.index), drawn, marker.slice(box.index + box[0].length));
+  } else {
+    ruler.textContent = marker;
+  }
   view.scrollDOM.appendChild(ruler);
   const width = ruler.getBoundingClientRect().width;
   ruler.remove();
@@ -92,9 +109,21 @@ function buildLines(view: EditorView): DecorationSet {
         const last = doc.lineAt(Math.max(node.from, node.to - 1)).number;
         for (let n = first; n <= last; n += 1) {
           const at = doc.line(n).from;
+          const classes = [cls];
+          // A block of code is one card, not a stack of painted lines: its first and last lines carry the corners
+          // (Matt: "code blocks missing border radii card shape and padding around the outside").
+          if (cls === styles.lineCode) {
+            if (n === first) classes.push(styles.lineCodeTop ?? '');
+            if (n === last) classes.push(styles.lineCodeFoot ?? '');
+          }
+          // A quote's first and last lines hold the space between it and the lines around it.
+          if (cls === styles.lineQuote) {
+            if (n === first) classes.push(styles.lineQuoteTop ?? '');
+            if (n === last) classes.push(styles.lineQuoteFoot ?? '');
+          }
           const existing = perLine.get(at);
-          if (existing) existing.push(cls);
-          else perLine.set(at, [cls]);
+          if (existing) existing.push(...classes);
+          else perLine.set(at, classes);
         }
       },
     });

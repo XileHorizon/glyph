@@ -1,0 +1,232 @@
+/*
+ * The cheat sheet (CheatSheet.tsx): a field to find a mark, chips to jump by
+ * group, then a card for each mark - icon, name, the characters in a ring, the
+ * line to type, and under a rule the same line as the note draws it.
+ *
+ * One column on a phone, two where there is room, so a folded phone and a
+ * tablet get twice as much on screen without the cards ever going narrow
+ * enough to break a line of markdown in half.
+ */
+
+/*
+ * The ground the sheet sits on: Settings' page, or the note's More sheet, which is a shade lighter. Whatever holds
+ * the cheat sheet says which with `--sheet-ground`, and everything here is drawn against that, so the strip at the top
+ * is the same colour as what is round it and the field and the cards stand out from it (Matt: "the search bar is
+ * blending in with the modal sheet also there is a weird background behind the pills and the search bar").
+ */
+.sheet {
+  --cs-ground: var(--sheet-ground, var(--glacier-bg));
+  padding-block-end: var(--glacier-space-8);
+}
+
+/* The field and the chips travel together, so neither can cover the other as the page scrolls. */
+.sticky {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 3;
+  padding-block-end: var(--glacier-space-2);
+  background: var(--cs-ground);
+  /*
+   * Above, the ground reaches up over the space a sheet keeps at its top (`--sheet-inset-top`), where the cards would
+   * otherwise show as they scroll past; below, a soft foot rather than a hard edge, so they pass under the strip
+   * rather than being cut by it.
+   */
+  box-shadow:
+    0 calc(-1 * var(--sheet-inset-top, 0px)) 0 0 var(--cs-ground),
+    0 0.75em 0.75em -0.5em var(--cs-ground);
+}
+
+/* Find a mark by name or by its characters: the fastest way in, above everything else. */
+.find {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin-block-end: var(--glacier-space-3);
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in oklch, currentColor 8%, var(--cs-ground));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, currentColor 16%, transparent);
+}
+
+.find:focus-within {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklch, currentColor 45%, transparent);
+}
+
+.findIcon {
+  display: flex;
+  color: var(--glacier-text-subtle);
+}
+
+.findField {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  border: none;
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  outline: none;
+}
+
+.findField::-webkit-search-cancel-button {
+  display: none;
+}
+
+.findClear {
+  display: flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--glacier-text-subtle);
+  cursor: pointer;
+}
+
+/* The way down a long page: the groups, in the order they come. */
+.chips {
+  display: flex;
+  gap: var(--glacier-space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-block: var(--glacier-space-2) 0;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: none;
+  padding: 0.35em 0.85em;
+  border: var(--glacier-hairline) solid color-mix(in oklch, currentColor 18%, transparent);
+  border-radius: 999px;
+  background: none;
+  color: var(--glacier-text-muted);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:active {
+  background: color-mix(in oklch, currentColor 10%, var(--cs-ground));
+  color: var(--glacier-text);
+}
+
+.group + .group {
+  /* `space-7` is not on the kit's scale, so this gap was never applied at all. */
+  margin-block-start: var(--glacier-space-8);
+}
+
+.groupHead {
+  margin-block-end: var(--glacier-space-3);
+  scroll-margin-block-start: var(--glacier-space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+}
+
+.lead {
+  margin: var(--glacier-space-1) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-muted);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--glacier-space-3);
+}
+
+.card {
+  display: grid;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+  padding: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid color-mix(in oklch, currentColor 10%, transparent);
+  border-radius: var(--glacier-radius-lg, 0.75rem);
+  background: color-mix(in oklch, currentColor 4%, var(--cs-ground));
+}
+
+/* A board takes the width it can get: it is the one mark that is a layout rather than a line. */
+.card[data-looks='board'] {
+  grid-column: 1 / -1;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin-block-end: var(--glacier-space-1);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--app-wash, var(--glacier-surface-sunken));
+  color: var(--glacier-text-muted);
+}
+
+.name {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+/* The mark itself, in a ring, so the eye finds it before the words. */
+.symbol {
+  flex: none;
+  padding: 0.15em 0.45em;
+  border: var(--glacier-hairline) solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-md, 8px);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--glacier-text-subtle);
+}
+
+.typed {
+  margin: 0 0 var(--glacier-space-2);
+  padding: var(--glacier-space-2);
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--glacier-surface-sunken);
+  color: var(--glacier-text-muted);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.shown {
+  padding-block-start: var(--glacier-space-2);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  min-inline-size: 0;
+}
+
+.nothing {
+  margin: var(--glacier-space-6) 0 0;
+  text-align: center;
+  color: var(--glacier-text-subtle);
+}

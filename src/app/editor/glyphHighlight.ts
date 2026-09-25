@@ -38,6 +38,8 @@ export const glyphHighlight = HighlightStyle.define([
   { tag: tags.emphasis, class: styles.em },
   { tag: tags.strikethrough, class: styles.strike },
   { tag: tags.monospace, class: styles.code },
+  // `x^2^` and `H~2~O` are both `special(content)`, so the highlighter cannot tell one from the other: they are
+  // drawn by node name instead (editor/extended.ts).
 
   { tag: tags.link, class: styles.link },
   { tag: tags.url, class: styles.url },
@@ -48,6 +50,21 @@ export const glyphHighlight = HighlightStyle.define([
   // `[ ]` and `[x]`: an atom rather than a marker, because a task box is a
   // control the eye looks for, not punctuation it should look past.
   { tag: tags.atom, class: styles.taskMarker },
+
+  // Code inside a fenced block, parsed by its own language (language.ts), in
+  // the code theme chosen for the page's side (codeThemes.ts): each kind of
+  // token a custom property. Ink draws them in weight and shade; the coloured
+  // themes in colour.
+  { tag: [tags.keyword, tags.modifier, tags.controlKeyword, tags.operatorKeyword, tags.definitionKeyword, tags.moduleKeyword, tags.self], class: styles.codeKeyword },
+  { tag: [tags.macroName], class: styles.codeMacro },
+  { tag: [tags.meta, tags.annotation, tags.special(tags.variableName)], class: styles.codeMeta },
+  { tag: [tags.string, tags.special(tags.string), tags.regexp], class: styles.codeString },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment, tags.docComment], class: styles.codeComment },
+  { tag: [tags.typeName, tags.className, tags.tagName, tags.namespace], class: styles.codeType },
+  { tag: [tags.propertyName, tags.attributeName, tags.attributeValue], class: styles.codeProperty },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName), tags.definition(tags.variableName)], class: styles.codeName },
+  { tag: [tags.number, tags.bool, tags.null, tags.literal], class: styles.codeLiteral },
+  { tag: [tags.operator, tags.punctuation, tags.bracket, tags.separator], class: styles.codePunctuation },
 
   // Every delimiter in the language. Keep last; see the note above.
   { tag: tags.processingInstruction, class: styles.mark },

@@ -25,7 +25,81 @@ use std::sync::Mutex;
 
 use tauri::Manager;
 
-use crate::store::{recording_file, Note, RecordedSegment, Recording, Store};
+use crate::library::Library;
+use crate::store::{
+    recording_file, CommandMutation, CommandMutationResult, CommandUndoResult, Note,
+    PendingCommandUndo, RecordedSegment, Recording, Store,
+};
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApplyCommandRequest {
+    mutation_id: String,
+    note_id: String,
+    kind: String,
+    before_revision: Option<i64>,
+    before_body: Option<String>,
+    after_body: String,
+    source: String,
+}
+
+/// Applies only the already-previewed deterministic Markdown. Inference never
+/// reaches this command and cannot provide ids, revisions, or note bodies.
+#[tauri::command]
+pub fn apply_command_mutation(
+    store: tauri::State<'_, NotesStore>,
+    request: ApplyCommandRequest,
+) -> std::result::Result<CommandMutationResult, String> {
+    let plain_id = |id: &str| {
+        !id.is_empty()
+            && id.len() <= 128
+            && id
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+    };
+    if !plain_id(&request.mutation_id) || !plain_id(&request.note_id) {
+        return Err("a command mutation needs plain bounded ids".into());
+    }
+    if !matches!(request.source.as_str(), "editor" | "capture") {
+        return Err("a command mutation has an unsupported source".into());
+    }
+    if !matches!(request.kind.as_str(), "append" | "create") {
+        return Err("only append and create command mutations are supported".into());
+    }
+    if request.kind == "create" && (request.before_revision.is_some() || request.before_body.is_some()) {
+        return Err("a create command cannot replace an existing note".into());
+    }
+    if request.kind == "append" && (request.before_revision.is_none() || request.before_body.is_none()) {
+        return Err("an append command needs the previewed note revision".into());
+    }
+    store
+        .lock()
+        .apply_command(&CommandMutation {
+            id: request.mutation_id,
+            note_id: request.note_id,
+            kind: request.kind,
+            before_revision: request.before_revision,
+            before_body: request.before_body,
+            after_body: request.after_body,
+            source: request.source,
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn undo_command_mutation(
+    store: tauri::State<'_, NotesStore>,
+    mutation_id: String,
+) -> std::result::Result<CommandUndoResult, String> {
+    store.lock().undo_command(&mutation_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn latest_command_mutation(
+    store: tauri::State<'_, NotesStore>,
+) -> std::result::Result<Option<PendingCommandUndo>, String> {
+    store.lock().latest_command_undo(10 * 60 * 1_000).map_err(|e| e.to_string())
+}
 
 /// Keeps the on-device model's formatted version of a note, or clears it with
 /// `null`. `formattedFor` is the page's hash of the body it was made from and
@@ -66,7 +140,7 @@ const DB_FILE: &str = "glyph.sqlite";
 /// anyway. The CROSS-PROCESS contention - the capture service writing while
 /// this connection reads - is not what this lock is for; that one is SQLite's,
 /// through WAL and the busy timeout.
-pub struct NotesStore(pub Mutex<Store>);
+pub struct NotesStore(pub Mutex<Library>);
 
 impl NotesStore {
     /// The guard, recovered if some earlier command panicked while holding it.
@@ -78,7 +152,7 @@ impl NotesStore {
     /// guard and refusing every note operation for the rest of the process's
     /// life because one of them once panicked - which is how an app goes from
     /// having a bug to being a brick.
-    pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Store> {
+    pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Library> {
         self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
@@ -108,9 +182,41 @@ pub fn install(app: &tauri::App) -> std::result::Result<(), String> {
         .map_err(|e| format!("no app data directory to keep notes in: {e}"))?;
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-    let store = Store::open(&dir.join(DB_FILE)).map_err(|e| e.to_string())?;
-    app.manage(NotesStore(Mutex::new(store)));
+    let library = open_library(&dir)?;
+    app.manage(NotesStore(Mutex::new(library)));
     Ok(())
+}
+
+/// The library folder in the app's own storage (docs/LIBRARY.md, phase 1).
+const LIBRARY_DIR: &str = "Library";
+
+/// Opens the library, and the first time, moves every note of the old
+/// database into it as a file. The old database is kept, renamed
+/// `glyph.sqlite.moved`, and only once every note is written out: a move that
+/// stops halfway (the app killed, the storage full) leaves the database where
+/// it was, and the next launch finishes it, because a note already in the
+/// library is never written twice.
+fn open_library(dir: &std::path::Path) -> std::result::Result<Library, String> {
+    let mut library = Library::open_fs(&dir.join(LIBRARY_DIR)).map_err(|e| e.to_string())?;
+    let old = dir.join(DB_FILE);
+    if old.exists() && !library.moved_in() {
+        let store = Store::open(&old).map_err(|e| e.to_string())?;
+        match library.move_in(&store) {
+            Ok(moved) => {
+                drop(store);
+                library.mark_moved_in(DB_FILE, moved).map_err(|e| e.to_string())?;
+                for suffix in ["", "-wal", "-shm"] {
+                    let from = dir.join(format!("{DB_FILE}{suffix}"));
+                    if from.exists() {
+                        let _ = std::fs::rename(&from, dir.join(format!("{DB_FILE}.moved{suffix}")));
+                    }
+                }
+                eprintln!("[glyph] moved {moved} notes from {DB_FILE} into the library");
+            }
+            Err(e) => eprintln!("[glyph] the move into the library stopped, and will finish next launch: {e}"),
+        }
+    }
+    Ok(library)
 }
 
 /// Every note, newest edit first. What the list screen draws.
@@ -129,23 +235,35 @@ pub fn get_note(
     store.lock().get_note(&id).map_err(|e| e.to_string())
 }
 
-/// Creates or edits a note and answers with what is now on disk.
+/// Creates a note only while its id is unused.
 ///
 /// The id comes from the page rather than being minted here, because the page
 /// has to have one before the first save lands: a new note is routed to and
 /// drawn as soon as it is tapped, and an id that only exists after a 400 ms
 /// debounce is an id the editor spends its first keystrokes without.
 ///
-/// `source` is only read when the note is new - see `store::save_note` for the
-/// birth-facts rule and why an edit must not overwrite it.
 #[tauri::command]
-pub fn save_note(
+pub fn create_note(
     store: tauri::State<'_, NotesStore>,
     id: String,
     body: String,
     source: String,
 ) -> std::result::Result<Note, String> {
-    store.lock().save_note(&id, &body, &source).map_err(|e| e.to_string())
+    store.lock().create_note(&id, &body, &source).map_err(|e| e.to_string())?
+        .ok_or_else(|| "the note id already exists".to_string())
+}
+
+/// Updates exactly an existing revision. A deleted row is a conflict, never
+/// an invitation to insert it again.
+#[tauri::command]
+pub fn update_note(
+    store: tauri::State<'_, NotesStore>,
+    id: String,
+    body: String,
+    expected_revision: i64,
+) -> std::result::Result<Note, String> {
+    store.lock().update_note(&id, &body, expected_revision).map_err(|e| e.to_string())?
+        .ok_or_else(|| "the note was deleted or changed".to_string())
 }
 
 /// Removes a note, answering `true` when a row actually went and `false` when
@@ -162,7 +280,7 @@ pub fn delete_note(
     store: tauri::State<'_, NotesStore>,
     id: String,
 ) -> std::result::Result<bool, String> {
-    let store = store.lock();
+    let mut store = store.lock();
     // The body is read before the row goes: it is the only list of the
     // pictures the note had. They go after it, so a failed delete never
     // leaves a note pointing at pictures that are gone, and one another note
@@ -201,6 +319,46 @@ pub fn set_note_recording(
         None => None,
     };
     store.lock().set_recording(&id, recording.as_ref()).map_err(|e| e.to_string())
+}
+
+/// Writes a note as another device has it, for sync (docs/SYNC.md): its own
+/// times, pin, archive, folder, recording phrases and formatted version.
+/// Answers with the note as it now is here. Native generation 16.
+#[tauri::command]
+pub fn store_apply(store: tauri::State<'_, NotesStore>, note: Note) -> std::result::Result<Note, String> {
+    if let Some(segments) = &note.segments {
+        Recording::new(note.recording_ms.unwrap_or(0), segments.clone())?;
+    }
+    store.lock().apply_note(&note).map_err(|e| e.to_string())
+}
+
+/// Keeps a file that arrived by sync (docs/SYNC.md): a note's recording under
+/// the note's id (`kind` "recording", WAV bytes), or a picture under its own
+/// name (`kind` "image"). Written whole or not at all. Native generation 16.
+#[tauri::command]
+pub fn sync_put_file(app: tauri::AppHandle, kind: String, name: String, base64: String) -> std::result::Result<(), String> {
+    match kind.as_str() {
+        "image" => {
+            let images = crate::images::images_dir(&app).ok_or_else(|| "There is no room to keep pictures.".to_string())?;
+            crate::images::place(&images, &name, &base64)
+        }
+        "recording" => {
+            use base64::Engine as _;
+            let dir = recordings_dir(&app).ok_or_else(|| "There is no room to keep recordings.".to_string())?;
+            let file = recording_file(&dir, &name).ok_or_else(|| "That is not a note id.".to_string())?;
+            let bytes = base64::engine::general_purpose::STANDARD.decode(base64.trim()).map_err(|_| "That recording could not be read.".to_string())?;
+            if !bytes.starts_with(b"RIFF") {
+                return Err("That is not a recording Glyph can keep.".to_string());
+            }
+            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            let part = dir.join(format!(".{name}.part"));
+            std::fs::write(&part, &bytes).and_then(|()| std::fs::rename(&part, &file)).map_err(|e| {
+                let _ = std::fs::remove_file(&part);
+                format!("The recording could not be saved: {e}")
+            })
+        }
+        _ => Err(format!("Nothing is kept as {kind}.")),
+    }
 }
 
 /// Stars or unstars a note from the list's swipe. Answers with the note, or

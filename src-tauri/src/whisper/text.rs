@@ -84,14 +84,32 @@ pub fn clean(raw: &str) -> String {
 /// Twelve cues is about thirty tokens, well inside the 224 whisper.cpp keeps.
 /// When it trims, it trims from the front, so this line goes before the
 /// committed tail and is the part that gets dropped first.
-pub const CUE_VOCABULARY: &str = "Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
-    Important. Bold, end bold. Italics, end italics. Divider. New paragraph.";
+///
+/// "Glyph" closes it, the keyword every spoken command starts with. Without it
+/// twelve synthesised voices wrote "Gliff", "Gliv", "Glit", "Life" and "Live"
+/// for it; with it a few more came back as "Glyph" or a spelling
+/// `capture/command.ts` knows, and plain dictation did not change. It leads
+/// the line: at the end, just before the committed tail, it read as a
+/// sentence of its own and a phrase carried across a cut started over in
+/// capitals (`tests::a_prompt_tail_carries_a_sentence_across_the_cut`).
+pub const CUE_VOCABULARY: &str = "Glyph. Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
+    Important. Bold, end bold. Italics, end italics. Divider. New paragraph. \
+    Create list. Add to list. Called. Groceries. Grocery list.";
+
+/// The cues added since, spoken far less often: in the prompt only where a sentence has just ended, since any word
+/// past the short list above made base.en start a sentence cut in two with a capital (the prompt-tail test in
+/// tests.rs), and a cue only ever starts a sentence anyway.
+pub const MORE_CUES: &str = "Subheading. Option. Info box. Hidden line. Calculate. Hashtag. Counter. \
+    Strike, end strike. Code, end code. Note link, end link. Voice memo, end memo. \
+    Done task. Footnote. Code block. Superscript. Subscript. Maths. Emoji. Anchor. Item link. Bookmark this. New line. Define.";
 
 /// The prompt for the next window: the cue vocabulary, then the committed tail.
 pub fn prompt(committed: &str, tail_chars: usize) -> String {
     let tail = prompt_tail(committed, tail_chars);
     if tail.is_empty() {
-        CUE_VOCABULARY.to_string()
+        format!("{CUE_VOCABULARY} {MORE_CUES}")
+    } else if tail.trim_end().ends_with(['.', '!', '?']) {
+        format!("{CUE_VOCABULARY} {MORE_CUES} {tail}")
     } else {
         format!("{CUE_VOCABULARY} {tail}")
     }
@@ -110,14 +128,19 @@ pub fn prompt(committed: &str, tail_chars: usize) -> String {
 /// exactly how a cue is said before a pause.
 pub fn without_prompt_echo(text: &str) -> String {
     const RUN: usize = 3;
-    let cues: Vec<String> = sentences(CUE_VOCABULARY).map(normalise).collect();
+    let cues: Vec<String> = sentences(CUE_VOCABULARY).chain(sentences(MORE_CUES)).map(normalise).collect();
     let pieces: Vec<&str> = sentences(text).collect();
-    let is_cue: Vec<bool> = pieces.iter().map(|p| cues.contains(&normalise(p))).collect();
+    let is_cue: Vec<bool> = pieces
+        .iter()
+        .map(|p| cues.contains(&normalise(p)))
+        .collect();
 
     let mut keep = vec![true; pieces.len()];
     let mut start = 0;
     while start < pieces.len() {
-        let end = (start..pieces.len()).find(|&i| !is_cue[i]).unwrap_or(pieces.len());
+        let end = (start..pieces.len())
+            .find(|&i| !is_cue[i])
+            .unwrap_or(pieces.len());
         if end - start >= RUN {
             keep[start..end].iter_mut().for_each(|k| *k = false);
         }
@@ -211,7 +234,10 @@ mod tests {
         assert_eq!(clean(" (music)"), "");
         assert_eq!(clean(" ♪ ♪"), "");
         assert_eq!(clean(" Buy milk. [BLANK_AUDIO]"), "Buy milk.");
-        assert_eq!(clean(" (upbeat music) Ring the plumber."), "Ring the plumber.");
+        assert_eq!(
+            clean(" (upbeat music) Ring the plumber."),
+            "Ring the plumber."
+        );
         // The full stop left standing when the annotation between it and its
         // word goes has to rejoin the word, or the note reads "Hello ."
         assert_eq!(clean(" Hello [BLANK_AUDIO] ."), "Hello.");
@@ -231,8 +257,10 @@ mod tests {
 
     #[test]
     fn the_prompt_is_the_vocabulary_then_the_committed_tail() {
-        assert_eq!(prompt("", 200), CUE_VOCABULARY);
-        assert_eq!(prompt("   ", 200), CUE_VOCABULARY);
+        assert_eq!(prompt("", 200), format!("{CUE_VOCABULARY} {MORE_CUES}"));
+        assert_eq!(prompt("   ", 200), format!("{CUE_VOCABULARY} {MORE_CUES}"));
+        // After a finished sentence the rarer cues come too; mid-sentence only the short list, so the words carry on.
+        assert_eq!(prompt("Call the plumber.", 200), format!("{CUE_VOCABULARY} {MORE_CUES} Call the plumber."));
         assert_eq!(
             prompt("Remember to descale the kettle before Thursday", 20),
             format!("{CUE_VOCABULARY} before Thursday")
@@ -243,7 +271,8 @@ mod tests {
     fn the_vocabulary_is_one_line_of_cue_sentences() {
         // The `\` continuation must not leave a run of spaces in the prompt.
         assert!(!CUE_VOCABULARY.contains("  "), "{CUE_VOCABULARY:?}");
-        assert_eq!(sentences(CUE_VOCABULARY).count(), 12);
+        assert_eq!(sentences(CUE_VOCABULARY).count(), 18);
+        assert!(!MORE_CUES.contains("  "), "{MORE_CUES:?}");
     }
 
     #[test]
@@ -251,7 +280,9 @@ mod tests {
         assert_eq!(without_prompt_echo(CUE_VOCABULARY), "");
         assert_eq!(without_prompt_echo("Title. Heading. Bullet point."), "");
         assert_eq!(
-            without_prompt_echo("Buy milk. Title. Heading. Bullet point. Number one. Call the bank."),
+            without_prompt_echo(
+                "Buy milk. Title. Heading. Bullet point. Number one. Call the bank."
+            ),
             "Buy milk. Call the bank."
         );
         // Whisper's casing and closing marks vary, so the match ignores both.

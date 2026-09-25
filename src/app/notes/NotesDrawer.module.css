@@ -1,0 +1,60 @@
+/*
+ * The floating notes card (NotesDrawer.tsx): a card at the left, over the note,
+ * with the page still visible beside it rather than behind a scrim. It arrives
+ * from the left edge, the way a drawer would.
+ */
+
+.over {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  /* The page beside the card stays live: only the card takes taps, and a tap anywhere else closes it. */
+  pointer-events: none;
+}
+
+.card {
+  pointer-events: auto;
+  position: absolute;
+  /*
+   * A popover hung from the top bar's icon, not a full-height sidebar (Matt: "Sidebar should open and close in a
+   * popover not a full sidebar even on desktop"): as tall as the notes in it, and no taller than the window leaves
+   * below the bar, where the notes scroll inside it.
+   */
+  inset-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-2));
+  inset-inline-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-3));
+  max-block-size: calc(100dvh - var(--app-safe-top, 0px) - var(--app-safe-bottom, 0px) - var(--glacier-space-2) - var(--glacier-space-3));
+  inline-size: min(20rem, calc(100vw - var(--glacier-space-10)));
+  display: flex;
+  flex-direction: column;
+  /* The tree inside pads itself and scrolls its own middle (notes/NoteTree.tsx); the card only holds it and rounds it. */
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg, 16px);
+  background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 4%);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 34%);
+  /* Grows out of the icon above it, as a popover does, rather than sliding in from the edge like a drawer. */
+  transform-origin: top left;
+  animation: drawerIn 180ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+}
+
+@keyframes drawerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}
+
+/* The tree fills the card, so its tools stay at the top and its foot at the bottom while the notes scroll between. */
+.card > * {
+  flex: 1;
+  min-block-size: 0;
+}

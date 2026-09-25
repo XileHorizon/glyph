@@ -1,0 +1,247 @@
+/* The notices (Notices.tsx): the update card, the Academy's card, and a line about the voice model. */
+
+.notice {
+  margin: 0 0 var(--glacier-space-4);
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--glacier-text-muted);
+}
+
+/*
+ * The update card: white, holographic. Matt: "the update banner is kind of
+ * ugly with the solid blue, can you update it to be like a white holographic
+ * design". White in both themes - the one white card on black paper is the
+ * point - with a foil sheen: a faint pastel spectrum drifting slowly under a
+ * band of light, the way a holographic sticker catches a lamp. Near-black
+ * words and a black pill for the action, the app's own ink on its own paper.
+ */
+.update {
+  --update-ink: oklch(0.18 0.012 260);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  margin: 0 0 var(--glacier-space-5);
+  padding: var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg);
+  color: var(--update-ink);
+  background-color: #fff;
+  background-image:
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.85) 18%,
+      rgba(255, 255, 255, 0) 34%,
+      rgba(255, 255, 255, 0) 62%,
+      rgba(255, 255, 255, 0.7) 78%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      100deg,
+      oklch(0.93 0.085 350) 0%,
+      oklch(0.94 0.075 215) 20%,
+      oklch(0.96 0.075 135) 40%,
+      oklch(0.95 0.09 80) 60%,
+      oklch(0.93 0.08 300) 80%,
+      oklch(0.93 0.085 350) 100%
+    );
+  background-size:
+    260% 100%,
+    320% 100%;
+  background-position:
+    0% 0,
+    0% 0;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 30px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  animation:
+    update-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    holo 11s linear infinite;
+}
+
+/* The foil: the light band crosses one way, the spectrum drifts the other. */
+@keyframes holo {
+  to {
+    background-position:
+      -260% 0,
+      320% 0;
+  }
+}
+
+.updateText {
+  flex: 1;
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.updateAction {
+  appearance: none;
+  flex: none;
+  min-block-size: var(--glacier-space-10);
+  padding: 0 var(--glacier-space-4);
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: var(--update-ink);
+  color: #fff;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-bold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.updateAction:active {
+  transform: scale(0.96);
+}
+
+.updateAction:focus-visible {
+  outline: 2px solid var(--update-ink);
+  outline-offset: 2px;
+}
+
+.updateBar {
+  position: absolute;
+  inset: auto 0 0;
+  block-size: 3px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.updateBar > span {
+  display: block;
+  block-size: 100%;
+  background: var(--update-ink);
+  transition: inline-size 300ms linear;
+}
+
+@keyframes update-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update {
+    animation: none;
+  }
+}
+
+/*
+ * The Academy's card: the same shape and place as the update card, in the
+ * app's own ink and paper. The foil belongs to news; an invitation to learn
+ * the marks should look like the page it teaches you to write.
+ */
+.learn {
+  display: flex;
+  align-items: center;
+  /* Narrow places for it: the desktop sidebar's list is a third the width of a phone's, so Start drops under the words rather than squeezing them to one word a line. */
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2) var(--glacier-space-3);
+  margin: 0 0 var(--glacier-space-5);
+  padding: var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-4);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2, var(--glacier-surface));
+  animation: update-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.learnMark {
+  flex: none;
+  color: var(--glacier-text-muted);
+}
+
+.learnWords {
+  flex: 1 1 9rem;
+  min-inline-size: 0;
+}
+
+.learnLead {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.25;
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.learnLine {
+  margin: 2px 0 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--glacier-text-muted);
+}
+
+/* Start and the cross travel together: when the words leave no room they take a line of their own, at its end, rather than the cross going alone. */
+.learnDo {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin-inline-start: auto;
+}
+
+.learnAction {
+  appearance: none;
+  flex: none;
+  min-block-size: var(--glacier-space-10);
+  padding: 0 var(--glacier-space-4);
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-bold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.learnAction:active {
+  transform: scale(0.96);
+}
+
+.learnHide {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.learnHide:hover,
+.learnHide:active {
+  color: var(--glacier-text);
+}
+
+.learnAction:focus-visible,
+.learnHide:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .learn {
+    animation: none;
+  }
+}
+
+.noticeAction {
+  min-block-size: 0;
+  padding: 0;
+  font-size: inherit;
+  color: var(--glacier-accent-text);
+}

@@ -51,7 +51,7 @@ function listenOnce(): void {
 
 async function pickNative(): Promise<string | null> {
   const bridge = window.GlyphHost;
-  if (typeof bridge?.pickImage !== 'function') throw new Error('This build cannot add pictures yet. Install the newest Glyph.');
+  if (typeof bridge?.pickImage !== 'function') throw new Error('This build cannot add pictures yet. Install the newest Ghost.md.');
   listenOnce();
   const answer = await new Promise<PickAnswer>((resolve) => {
     pending = resolve;
@@ -126,7 +126,7 @@ export async function saveImageFile(file: Blob): Promise<string> {
       (status) => status.nativeGeneration ?? 0,
       () => 0,
     );
-    if (generation < PASTE_GENERATION) throw new Error('Pasting pictures needs the newest Glyph. Install it from attack.fm/glyph.');
+    if (generation < PASTE_GENERATION) throw new Error('Pasting pictures needs the newest Ghost.md. Install it from attack.fm/glyph.');
     const base64 = toBase64(new Uint8Array(await shrunk.arrayBuffer()));
     const { name } = await invoke<{ name: string }>('save_image_data', { base64 });
     return name;
@@ -174,6 +174,20 @@ async function webGet(name: string): Promise<Blob | null> {
     request.onsuccess = () => resolve((request.result as Blob | undefined) ?? null);
     request.onerror = () => resolve(null);
   });
+}
+
+/** A browser picture's bytes, for sync; null when this browser has none by that name. */
+export async function webImageBytes(name: string): Promise<Uint8Array<ArrayBuffer> | null> {
+  const blob = await webGet(name);
+  return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+}
+
+/** Keeps a picture that arrived by sync, under its own name. */
+export async function keepWebImage(name: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
+  const blob = new Blob([bytes], { type: name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg' });
+  await webPut(name, blob);
+  urls.set(name, URL.createObjectURL(blob));
+  window.dispatchEvent(new Event(IMAGE_READY));
 }
 
 /** A photo from the file picker, shrunk to at most 1600 px on its long side, as a JPEG. */

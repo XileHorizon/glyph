@@ -65,7 +65,8 @@ const FILLER_AFTER = /\s+(?:note|notes|list|page)$/i;
 const AT_END = new RegExp(String.raw`(?:^|[.,;!?]\s+|\s+and\s+|\s+)${OPENER}\s+(.+?)[.!?]*\s*$`, 'i');
 /** The command at the start, its name ending at the first stop or comma. */
 const AT_START = new RegExp(String.raw`^\s*${OPENER}\s+([^.,;!?]+)[.,;!?]\s*(.+)$`, 'i');
-const NEW_NOTE = /^\s*(?:new|start\s+a\s+new|another)\s+note[.!]?\s*$/i;
+/** "New note", and what base.en writes for it said quickly: "new notes", "new node". */
+const NEW_NOTE = /^\s*(?:new|start\s+a\s+new|another)\s+(?:notes?|node)[.!]?\s*$/i;
 
 /*
  * "New item for AttackFM", "add a task to the backlog", "new to-dos for work:
@@ -172,6 +173,11 @@ export interface Match<T extends Candidate> {
   score: number;
 }
 
+export type TargetResolution<T extends Candidate> =
+  | { status: 'resolved'; note: T; score: number }
+  | { status: 'ambiguous'; candidates: T[] }
+  | { status: 'not-found' };
+
 /** Lowercase words with punctuation and filler gone, and a plural's s dropped. */
 function wordsOf(text: string): string[] {
   return text
@@ -224,20 +230,26 @@ export function similarity(name: string, title: string): number {
  * `threshold` and beat the runner-up by `margin`. Ties go to the earlier
  * candidate, so pass them most recent first.
  */
-export function matchNote<T extends Candidate>(name: string, notes: readonly T[], { threshold = 0.72, margin = 0.08 } = {}): Match<T> | null {
-  let best: Match<T> | null = null;
-  let second = 0;
-  for (const note of notes) {
-    if (!note.title.trim()) continue;
-    const score = similarity(name, note.title);
-    if (!best || score > best.score) {
-      second = best?.score ?? second;
-      best = { note, score };
-    } else if (score > second) {
-      second = score;
-    }
-  }
-  if (!best || best.score < threshold) return null;
-  if (best.score - second < margin && best.score < 0.99) return null;
-  return best;
+export function matchNote<T extends Candidate>(name: string, notes: readonly T[], options: { threshold?: number; margin?: number } = {}): Match<T> | null {
+  const resolved = resolveTarget(name, notes, options);
+  return resolved.status === 'resolved' ? { note: resolved.note, score: resolved.score } : null;
+}
+
+/** Resolve a spoken title without throwing away why it was unsafe to choose. */
+export function resolveTarget<T extends Candidate>(
+  name: string,
+  notes: readonly T[],
+  { threshold = 0.72, margin = 0.08 }: { threshold?: number; margin?: number } = {},
+): TargetResolution<T> {
+  const ranked = notes
+    .filter((note) => note.title.trim())
+    .map((note) => ({ note, score: similarity(name, note.title) }))
+    .sort((a, b) => b.score - a.score);
+  const best = ranked[0];
+  if (!best || best.score < threshold) return { status: 'not-found' };
+  const exact = ranked.filter((candidate) => candidate.score >= 0.99);
+  if (exact.length > 1) return { status: 'ambiguous', candidates: exact.map((candidate) => candidate.note) };
+  const close = ranked.filter((candidate) => best.score - candidate.score < margin);
+  if (close.length > 1 && best.score < 0.99) return { status: 'ambiguous', candidates: close.map((candidate) => candidate.note) };
+  return { status: 'resolved', note: best.note, score: best.score };
 }

@@ -17,7 +17,12 @@ import '@glacier/react/styles.css';
 import './app/app.css';
 // Last: the ink palette, which maps every token above onto paper and ink.
 import './app/ink.css';
+import './app/editor/codeThemes.css';
 import { App } from './app/App.tsx';
+import { followShares } from './app/share/share.ts';
+
+// What this device shares follows its edits: a few seconds after a save, every share that changed is written again.
+followShares();
 
 let mounted = false;
 

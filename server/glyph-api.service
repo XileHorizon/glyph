@@ -5,8 +5,8 @@
 #
 # Shaped like attackfm.service on the same box on purpose: a dedicated system
 # user, loopback only (Caddy is the one door), and the same hardening lines.
-# It needs even less than AttackFM does - no data directory, no music, nothing
-# written anywhere - so ProtectSystem=strict has no ReadWritePaths at all.
+# It needs less than AttackFM does - no music - and writes only to its state
+# directory, which ProtectSystem=strict leaves writable because systemd made it.
 
 [Unit]
 Description=Glyph API (voice note annotation via the local Ollama)
@@ -19,6 +19,12 @@ Wants=network-online.target
 EnvironmentFile=/opt/glyph-api/glyph-api.env
 Environment=GLYPH_API_BIND=127.0.0.1:8796
 Environment=OLLAMA_URL=http://127.0.0.1:11434
+# Accounts and end-to-end encrypted sync (docs/SYNC.md): the database, its signing key and the recordings live in
+# /var/lib/glyph-api, which systemd makes and gives to the service user. It is the one place the service writes,
+# and the one thing on the box that needs backing up - the signing key is inside it.
+StateDirectory=glyph-api
+StateDirectoryMode=0700
+Environment=GLYPH_API_DATA=/var/lib/glyph-api
 ExecStart=/opt/glyph-api/bin/glyph-api
 User=glyph
 Group=glyph
@@ -34,8 +40,10 @@ ProtectHome=true
 PrivateTmp=true
 PrivateDevices=true
 # Measured idle on the box: 4.2 MB resident, 1.4 MB charged to the unit's
-# cgroup. The ceiling is for a bug, not for the workload.
-MemoryMax=96M
+# cgroup. A recording is held whole while it is stored (64 MB at most), so the
+# ceiling leaves room for one of those and the rest; it is still for a bug,
+# not for the workload.
+MemoryMax=256M
 
 [Install]
 WantedBy=multi-user.target

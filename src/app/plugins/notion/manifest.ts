@@ -6,7 +6,7 @@ export const manifest: PluginManifest = {
   name: 'Notion',
   description: 'Turns list items into tasks on your Notion boards: swipe an item, say it, or send a whole list.',
   version: '1.0.0',
-  author: 'Glyph',
+  author: 'Ghost.md',
   standard: true,
   permissions: [
     { kind: 'notes', why: 'Turns a sent item’s words into a link to its task, in the note it came from.' },
@@ -16,7 +16,7 @@ export const manifest: PluginManifest = {
   ],
   hosts: ['api.notion.com', 'attack.fm'],
   native: { generation: 12, commands: ['notion_save_account', 'notion_account', 'notion_disconnect', 'notion_request'] },
-  storage: ['glyph-notion-links', 'glyph-notion-signin'],
+  storage: ['glyph-notion-links', 'glyph-notion-signin', 'glyph-notion-tasks'],
 };
 
 export const host = createHost(manifest);

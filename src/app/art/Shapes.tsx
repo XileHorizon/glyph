@@ -131,22 +131,6 @@ export function Blank({ className }: ShapeProps) {
   );
 }
 
-/** Lines of text, the last one dissolving into dots and coming back: an empty archive. */
-export function EmptyArchive({ className }: ShapeProps) {
-  const dots = [4.2, 3.7, 3.2, 2.7, 2.2, 1.7, 1.2];
-  return svg(
-    className,
-    <>
-      <rect x="16" y="30" width="88" height="10" rx="5" fill="currentColor" />
-      <rect x="16" y="50" width="70" height="10" rx="5" fill="currentColor" />
-      {dots.map((r, i) => (
-        <circle key={r} className={styles.dot} style={{ animationDelay: `${i * 110}ms` }} cx={21 + i * 12} cy="75" r={r} fill="currentColor" />
-      ))}
-    </>,
-    styles.archive,
-  );
-}
-
 /** The app's mark at poster size: a bullet lands and its line writes out. */
 export function Welcome({ className }: ShapeProps) {
   return svg(

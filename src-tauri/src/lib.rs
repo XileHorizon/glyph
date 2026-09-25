@@ -8,6 +8,8 @@
 // first such caller that DID ship is the update-alert worker, for `ota`, below.
 // See store.rs's header.
 pub mod store;
+/// The notes as a folder of Markdown files, and the index over them (docs/LIBRARY.md).
+pub mod library;
 
 // The webview's door to the store - four commands and no logic of its own.
 mod commands;
@@ -29,6 +31,7 @@ pub mod llm;
 // run, a cancel, and the progress events. See its header.
 mod ai_commands;
 mod notion;
+mod link_preview;
 
 // Pictures in notes: `save_image` adopts one the Android shell picked, the
 // `img` scheme draws it, and a deleted note takes its pictures with it. See its
@@ -156,12 +159,19 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::list_notes,
             commands::get_note,
-            commands::save_note,
+            commands::create_note,
+            commands::update_note,
+            commands::apply_command_mutation,
+            commands::undo_command_mutation,
+            commands::latest_command_mutation,
             commands::delete_note,
             commands::set_note_starred,
             commands::set_note_archived,
             commands::set_note_recording,
             commands::set_note_formatted,
+            commands::store_apply,
+            commands::sync_put_file,
+            link_preview::link_preview,
             images::save_image,
             images::save_image_data,
             capture_commands::capture_model_status,
@@ -172,6 +182,8 @@ pub fn run() {
             capture_commands::capture_start,
             capture_commands::capture_push,
             capture_commands::capture_stop,
+            capture_commands::capture_reassign_recording,
+            capture_commands::capture_discard_recording,
             capture_commands::capture_cancel,
             capture_commands::capture_rewind,
             capture_commands::transcribe_wav,
@@ -184,6 +196,8 @@ pub fn run() {
             ai_commands::ai_fetch_model,
             ai_commands::ai_delete_model,
             ai_commands::ai_generate,
+            ai_commands::ai_infer_command,
+            ai_commands::ai_voice_step,
             ai_commands::ai_cancel,
             reset::reset_local_data,
             ota::ota_claim_boot,

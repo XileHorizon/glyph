@@ -1,0 +1,49 @@
+/*
+ * Cogs turning in a line of type (art/WorkingGears.tsx): as tall as the words beside them, in the same ink, and
+ * turned by the compositor rather than the page, so a download that is already using the phone is not slowed by its
+ * own animation.
+ */
+.gears {
+  display: inline-flex;
+  align-items: center;
+  block-size: 1.15em;
+  margin-inline-end: var(--glacier-space-2);
+  vertical-align: -0.2em;
+}
+
+.gears svg {
+  block-size: 100%;
+  inline-size: auto;
+  overflow: visible;
+}
+
+.gears path {
+  fill: currentColor;
+  opacity: 0.85;
+}
+
+.gears g {
+  animation: cogTurn var(--turn) linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/*
+ * The translate lives on the element's own `transform` and the turn is its own property, so the two do not fight:
+ * a cog is placed where it meshes, and spins about its middle from the angle that meshes it.
+ */
+@keyframes cogTurn {
+  from {
+    rotate: var(--from);
+  }
+  to {
+    rotate: var(--to);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gears g {
+    animation: none;
+    rotate: var(--from);
+  }
+}

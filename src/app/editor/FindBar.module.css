@@ -1,0 +1,107 @@
+/*
+ * The find bar (FindBar.tsx): resting on the keyboard, the page's paper with a hairline over it, one row for finding
+ * and one more for replacing. The page is laid out above the keyboard (MainActivity fitAboveKeyboard), so the bottom
+ * of the screen is the top of the keyboard.
+ */
+
+.bar {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 50;
+  display: grid;
+  /* One column no wider than the screen: an auto track grew to the fields' natural width and pushed Done off the edge. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--glacier-space-2);
+  padding-block: var(--glacier-space-2) calc(var(--glacier-space-2) + var(--app-safe-bottom, 0px));
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  background: var(--glacier-bg);
+  border-block-start: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  animation: barIn 160ms var(--glacier-ease-out, ease-out);
+}
+
+@keyframes barIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    animation: none;
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+}
+
+.field {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: 2.5rem;
+  padding: 0 var(--glacier-space-3);
+  border: 1.5px solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  color: var(--glacier-text);
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--glacier-text);
+}
+
+.count {
+  flex: none;
+  min-inline-size: 3em;
+  font-size: var(--glacier-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--glacier-text-muted);
+}
+
+.icon {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--glacier-text);
+  cursor: pointer;
+}
+
+.icon[data-on] {
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
+}
+
+.icon:disabled {
+  color: var(--glacier-text-subtle);
+}
+
+.word {
+  flex: none;
+  padding-inline: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.all {
+  flex: none;
+}
+
+.said {
+  margin: 0;
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  color: var(--glacier-text-muted);
+}

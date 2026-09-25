@@ -1,0 +1,252 @@
+/*
+ * The theme cards (ThemeCards.tsx): AttackFM's ThemeSelector.module.css in shape - the grid, the card, the split, the
+ * meta row and the tick - with the miniature inside redrawn as Glyph's note page. Every colour in the miniature is a
+ * `--theme-*` variable set from the option's palette (themePalettes.ts), so the card shows the theme, not the page.
+ */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+}
+
+/* System leads, full width: the one most people should take, with the manual choices paired beneath it. */
+.option:first-child {
+  grid-column: 1 / -1;
+}
+
+.option {
+  position: relative;
+  display: grid;
+  min-inline-size: 0;
+  overflow: hidden;
+  border: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--glacier-surface-raised, var(--app-raised));
+  color: var(--glacier-text);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
+    box-shadow var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out);
+}
+
+.option:hover {
+  border-color: var(--glacier-border-strong);
+}
+
+.option[data-selected] {
+  border-color: var(--glacier-accent-solid);
+  box-shadow: 0 0 0 1px var(--glacier-accent-solid);
+}
+
+.input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.option:has(.input:focus-visible) {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── the miniature ────────────────────────────────────────────────────────── */
+
+.preview {
+  position: relative;
+  block-size: 6.5rem;
+  overflow: hidden;
+  border-block-end: var(--glacier-hairline, 1px) solid var(--theme-border);
+  background: var(--theme-background);
+  color: var(--theme-text);
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1.2rem 1fr 1.1rem;
+  overflow: hidden;
+  background: var(--theme-background);
+  color: var(--theme-text);
+}
+
+/* The dark half of System: the same scene, clipped to the right. */
+.sceneAlternate {
+  clip-path: inset(0 0 0 50%);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding-inline: 0.5rem;
+  border-block-end: 1px solid var(--theme-border);
+  background: var(--theme-sidebar);
+}
+
+.back {
+  inline-size: 0.9rem;
+  block-size: 0.26rem;
+  margin-inline-end: 0.2rem;
+  border-radius: 999px;
+  background: var(--theme-muted);
+  opacity: 0.7;
+}
+
+.tab {
+  inline-size: 1.4rem;
+  block-size: 0.5rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  background: var(--theme-surface);
+}
+
+.tab[data-active] {
+  border-color: var(--theme-text);
+  background: var(--theme-text);
+}
+
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.34rem;
+  padding: 0.55rem 0.6rem 0.3rem;
+}
+
+.heading {
+  inline-size: 46%;
+  block-size: 0.36rem;
+  border-radius: 999px;
+  background: var(--theme-text);
+}
+
+.line {
+  inline-size: 86%;
+  block-size: 0.24rem;
+  border-radius: 999px;
+  background: var(--theme-muted);
+  opacity: 0.6;
+}
+
+.line[data-short] {
+  inline-size: 58%;
+}
+
+.todo {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.box {
+  flex: none;
+  inline-size: 0.42rem;
+  block-size: 0.42rem;
+  border: 1px solid var(--theme-text);
+  border-radius: 0.1rem;
+}
+
+/* Two segments, the chosen one in the accent: the one place the accent shows on the page. */
+.segments {
+  display: flex;
+  gap: 1px;
+  inline-size: 2.6rem;
+  margin-block-start: auto;
+  padding: 1px;
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  background: var(--theme-surface);
+}
+
+.segment {
+  flex: 1;
+  block-size: 0.42rem;
+  border-radius: 999px;
+}
+
+.segment[data-chosen] {
+  background: var(--theme-accent);
+}
+
+/* The Speak pill at the foot, in the page's ink. */
+.speak {
+  justify-self: center;
+  inline-size: 2.2rem;
+  block-size: 0.7rem;
+  border-radius: 999px;
+  background: var(--theme-text);
+}
+
+/* ── the words under it ───────────────────────────────────────────────────── */
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  padding: var(--glacier-space-3);
+}
+
+.copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-inline-size: 0;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label {
+  color: var(--glacier-text);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: var(--glacier-leading-sm);
+}
+
+.description {
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+  line-height: var(--glacier-leading-sm);
+}
+
+.indicator {
+  display: grid;
+  flex: 0 0 auto;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  place-items: center;
+  border: var(--glacier-hairline, 1px) solid var(--glacier-border);
+  border-radius: var(--glacier-radius-full, 999px);
+  background: transparent;
+  color: transparent;
+  transition:
+    background-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
+    border-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
+    color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out);
+}
+
+.option[data-selected] .indicator {
+  border-color: var(--glacier-accent-solid);
+  background: var(--glacier-accent-solid);
+  color: var(--glacier-accent-contrast, var(--app-paper));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option,
+  .indicator {
+    transition: none;
+  }
+}

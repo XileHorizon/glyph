@@ -1,0 +1,656 @@
+/*
+ * The tab row (NoteTabs.tsx), inside the note's header pane: the sidebar's
+ * icon, then a tab for each open note. The tabs scroll sideways rather than
+ * shrinking to nothing, so the tenth open note is reachable and the first is
+ * still readable.
+ */
+
+/*
+ * Where the baseline's gap under the tab being read starts and ends, in the row's scrolled coordinates. Registered as
+ * lengths so the gap can slide with the tab's outline (NoteTabs.tsx `glide`) rather than jumping to where it lands.
+ */
+@property --tab-hole-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --tab-hole-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/*
+ * Two lines (Matt: "Move the controls for the note into the topbar and put the tabs on the next line down"): the
+ * controls above, the open notes below. The second line is not rendered at all when nothing is open, so a note
+ * reached from the list carries no empty strip where its tabs would be.
+ */
+.bar {
+  /*
+   * The line the tabs stand on, the outline of the one being read, and the curves joining the two - one colour, so it
+   * reads as one line that runs along and goes up round the active tab. A little stronger than the page's own rule,
+   * which was faint enough that the outline barely read.
+   *
+   * Opaque: the ink mixed into the page's own paper, not into transparency (Matt: "some kind of opacity overlap causing
+   * where the paths overlap to be brighter than the rest of the border"). The line is drawn in pieces - the baseline,
+   * the tab's border, the two curves - that meet and overlap by a pixel, and a see-through colour laid over itself
+   * builds up, so every join drew brighter than the line. An opaque colour over itself is the same colour.
+   */
+  --tab-line: color-mix(in oklch, var(--app-ink, currentColor) 22%, var(--app-paper, var(--glacier-bg)));
+  /* The size of the curve where the line bends up into the active tab. */
+  --tab-flare: 7px;
+  /* The whole height of the bar, so the tabs can be pushed to its foot (`.tabs`) while the tools stay at its top. */
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--glacier-space-1);
+  flex: 1;
+  min-inline-size: 0;
+}
+
+/* The top line: the way to the notes and back at one end, whatever the screen puts in the slot at the other. */
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+}
+
+/*
+ * A narrow phone carries seven rings on this line - the sidebar, the two arrows and the note's four - and at 360px
+ * they came to ten pixels more than the row, which cut the last one. The rings keep their size, because they are
+ * what a thumb aims at; the air between them gives instead.
+ */
+@media (max-width: 440px) {
+  .top {
+    gap: var(--glacier-space-1);
+  }
+}
+
+/*
+ * Where the screen's own controls land (core/topBarTools.ts). Pushed to the far end.
+ *
+ * The rings take the taps, not the box around them. The buttons portalled in here carry no `pointer-events` of their
+ * own, so something has to say they are targets - but saying it on the slot made the slot itself the target across
+ * its whole area, and a click in the few pixels between two rings was swallowed instead of reaching the note under
+ * the bar. Measured with elementFromPoint at a point between two rings: the slot's own box answered. That is the
+ * same bug the tabs row had across both panes, smaller. So: the ring, and only the ring.
+ */
+.slot {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  /*
+   * And if the line ever runs out of room, it scrolls rather than cutting the last control off. At 360px the seven
+   * rings come to exactly the width of the row, which means the next thing to arrive - a reader with larger type, a
+   * narrower phone, one more control - would clip the three dots into nothing. Reachable beats invisible.
+   */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.slot::-webkit-scrollbar {
+  display: none;
+}
+
+.slot button {
+  pointer-events: auto;
+  flex: none;
+}
+
+.sidebar {
+  /* A target in a bar that otherwise passes clicks through to whatever is under it (app.css .app-tabBar). */
+  pointer-events: auto;
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  /* Bigger than they were built, smaller than they got (Matt: "make the tabs slightly bigger", then "the tabs are
+     just a bit too big now go down in size a bit same with the buttons on the navbar"). The scale has no 7 or 9: an
+     invalid token is not a smaller button, it is no rule at all, and the button falls back to its own glyph's size. */
+  /* The same size as the note header's rings (editor/NoteScreen.module.css .cog), so every round control in the app
+     is one size: a kit step multiplied rather than a number of its own. */
+  inline-size: calc(var(--glacier-space-10) * 0.88);
+  block-size: calc(var(--glacier-space-10) * 0.88);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-md, 9px);
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.step {
+  pointer-events: auto;
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: calc(var(--glacier-space-10) * 0.88);
+  block-size: calc(var(--glacier-space-10) * 0.88);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-md, 9px);
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.step:hover,
+.step:active {
+  color: var(--glacier-text);
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+/* Nowhere to go that way: still there, so the row never changes width, but plainly dead. */
+.step:disabled {
+  opacity: 0.3;
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: default;
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.sidebar:hover,
+.sidebar:active {
+  color: var(--glacier-text);
+  background: var(--app-paper-2, var(--glacier-surface));
+}
+
+/*
+ * On - the sidebar showing, or Home being the page - is a ring round the button in its own ink, not the button filled
+ * solid white (Matt: "make the highlight of the active button simply outline instead of highlighting solid white").
+ * Inset, so it sits inside the button's own round and the focus ring outside it stays its own; no ground of its own,
+ * so a hover over an active button still shows the hover's.
+ */
+.sidebar[data-on] {
+  color: var(--glacier-text);
+  box-shadow: inset 0 0 0 1.5px var(--glacier-text);
+}
+
+.sidebar:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.tabs {
+  display: flex;
+  /* Real tabs stand on a line: every tab's foot on the row's baseline, below. */
+  align-items: flex-end;
+  gap: 2px;
+  min-inline-size: 0;
+  overflow-x: auto;
+  /*
+   * The baseline the tabs stand on, the whole width of the row, with a gap cut in it under the tab being read and its
+   * two curves, where that tab opens into the note (`--tab-hole-start` to `--tab-hole-end`, set by NoteTabs.tsx).
+   *
+   * It used to run unbroken, and the tab being read covered it with a ground of solid paper - which on a phone sat on
+   * the header's glass as a flat block (Matt: "Add the glass effect to the tabs right now they have a solid background
+   * and it looks jarring on the glass header"). The tab is see-through now, so the line has to stop under it rather
+   * than be painted over. A background rather than a border: a scroller clips a border, and `local` lets the line and
+   * its gap scroll with the tabs and run the length of a row wider than the screen.
+   */
+  background: linear-gradient(
+      to right,
+      var(--tab-line) var(--tab-hole-start),
+      transparent var(--tab-hole-start) var(--tab-hole-end),
+      var(--tab-line) var(--tab-hole-end)
+    )
+    left bottom / 100% 1px no-repeat local;
+  /* At the foot of the bar, whatever air the bar has: a tab's foot is on the line, never above it. */
+  margin-block-start: auto;
+  /*
+   * The row bleeds past the bar's gutter, so tabs run off the screen edge instead of stopping short of it with a
+   * dead strip beyond (Matt: "Allow tabs to flow off the right side of the screen there is currently a gap from
+   * padding"). Measured at 430px with the row overflowing: the scroller's box ended 22px in from the edge.
+   *
+   * Given back as padding inside the scroller, so the last tab still rests a gutter in from the edge when the row is
+   * scrolled to its end rather than jammed against the glass. `--app-gutter-end` is the bar's own padding named once
+   * in app.css, so pulling out by it and padding back by it cannot drift apart.
+   */
+  margin-inline-end: calc(-1 * var(--app-gutter-end));
+  padding-inline-end: var(--app-gutter-end);
+  /*
+   * The same at the start, with a smaller inset given back (Matt: "The space on the left of the tab can be less so
+   * the top and bottom spacing is matched on the left"). A tab sits 4.5px under the row of buttons and 6px above the
+   * bar's edge, and sat 22.5px in from the side: the bar's gutter is the right inset for the buttons above, and four
+   * times too much for the pills below, which carry their own ground and do not need the page's margin. The tabs now
+   * rest a hair off the glass, the same hair as above and below them, and scroll off both edges.
+   *
+   * The phone's own inset stays out of the bleed: a tab must never sit under a rounded corner or a landscape notch.
+   */
+  margin-inline-start: calc(-1 * var(--app-bar-start));
+  padding-inline-start: var(--app-bar-start);
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  /*
+   * For the outline that slides between tabs (`.glide`): placed against the row, so it scrolls with the tabs, and drawn
+   * in a layer of the row's own - over the baseline, which is the row's shadow, and under every tab, chip and button.
+   */
+  position: relative;
+  isolation: isolate;
+}
+
+/*
+ * The row's ends soften, so each reads as going on past the edge - and only when it does (Matt: "only show the wisp
+ * blur effect on the end of the scrolling tab list when it overflows the screen"). On a row that fits, the fade was
+ * dimming the last tab for no reason: there was nothing past the edge to promise. The left end fades once the row
+ * has been scrolled from its start, and not at the start itself, where nothing is out of sight (NoteTabs.tsx `ends`,
+ * which also puts the wisp on each end that fades).
+ */
+.tabs[data-fade-start],
+.tabs[data-fade-end] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--tab-fade-start, 0px), #000 calc(100% - var(--tab-fade-end, 0px)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--tab-fade-start, 0px), #000 calc(100% - var(--tab-fade-end, 0px)), transparent 100%);
+}
+
+.tabs[data-fade-start] {
+  --tab-fade-start: 12px;
+}
+
+/* Short, under the smoke: the wisp's lip sits in from the end (art/wispSides.ts), where the tabs are still drawn. */
+.tabs[data-fade-end] {
+  --tab-fade-end: 12px;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* One tab: the note's name, and a cross that closes it. */
+.tab {
+  pointer-events: auto;
+  /* Dragged rather than dragged over: the row reorders under the finger (NoteTabs.tsx), so a tab only needs to say
+     that it is the one moving. */
+  transition: transform 140ms var(--glacier-ease-out, ease-out);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  /* Room for a workspace pill and a short name beside it: the pill grew, and at 11rem it was eating names like
+     "Alpha note" that have room to spare. */
+  max-inline-size: 17rem;
+  /*
+   * Every tab the same height, whether or not it carries a workspace pill (Matt: "Notes without pills in the tabs are
+   * shorter than ones with the pills in them"). A pill is taller than the name's own line, so it was setting the
+   * height of the tabs that had one and leaving the rest short: measured at 430px, 34.1px against 27.0px.
+   *
+   * The height is the pill's own (`--app-tab-h`, app.css, where the bar that holds this row reads it too), so the two
+   * kinds of tab cannot differ, and neither can the bar around them: the kit's type scale grows with the window, so a
+   * tab that is 34.2px on a phone is 36.4px on a widescreen, and a bar built from a fixed number was the wrong height
+   * for it there.
+   */
+  min-block-size: var(--app-tab-h);
+  /*
+   * A tab, not a pill (Matt: "clean up the tabs to look like real tabs instead of pills", with Obsidian's as the
+   * picture). Square at the foot and rounded at the top, sitting on the row's baseline (`.tabs`). The ones behind are
+   * bare words; the one being read is outlined and takes the page's own ground, so it covers the line under it and
+   * reads as opening into the note below - which is what makes a tab look like a tab.
+   */
+  border: 1px solid transparent;
+  border-block-end: 0;
+  border-radius: var(--glacier-radius-md, 0.625rem) var(--glacier-radius-md, 0.625rem) 0 0;
+  background: none;
+  color: var(--glacier-text-muted);
+  /* A tab is held to move it and held to open its menu (NoteTabs.tsx), and a phone answers a hold on words by
+     selecting them - which is all that happened before. There is nothing here to read but the note's name. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.tab {
+  /* For the group's line along its foot, and the flares of the tab being read. */
+  position: relative;
+}
+
+.tab:not([data-active]):hover {
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.tab[data-active] {
+  position: relative;
+  /* Glass, not paper: the bar's own ground shows through, as it does round every other tab. Its outline is `.glide`. */
+  background: none;
+  color: var(--app-ink, var(--glacier-text));
+}
+
+/*
+ * Where the line meets the tab it bends up into it rather than turning a square corner (Matt: "I want border on the
+ * bottom of the tabs to follow the shape of the active tab like in the screenshot" - Obsidian's, where the line
+ * sweeps up into the tab's side). A small square outside each bottom corner, drawn as a quarter circle: clear inside
+ * the curve, the line along it, and clear outside it too - the baseline's gap (`.tabs`) takes in both squares, so there
+ * is no straight line under the curve to cover.
+ *
+ * Each is placed at `100%`, which is measured from the outline's padding box - already inside its 1px border - so the
+ * curve's end lands on the border's own column and the two meet in one line. Placed at `100% - 1px`, as it first was,
+ * the curve ended a pixel and a half inside the side it was meant to join, and the corner stepped sideways.
+ *
+ * Every edge of the curve fades over a little under a pixel rather than switching at one (Matt: "the part where the
+ * line meets is quite jagged"). A gradient that changes colour at an exact radius gets no smoothing from the browser,
+ * so a curve drawn that way comes out in steps; given room to blend, it draws as smoothly as a border's own corner.
+ */
+.glide::before,
+.glide::after {
+  content: '';
+  position: absolute;
+  /* Under the outline's lower corners, where its sides stop: the curve carries each side on down to the line. */
+  inset-block-start: 100%;
+  inline-size: var(--tab-flare);
+  block-size: var(--tab-flare);
+  pointer-events: none;
+}
+
+.glide::before {
+  inset-inline-end: 100%;
+  background: radial-gradient(
+    circle at 0 0,
+    transparent calc(var(--tab-flare) - 1.6px),
+    var(--tab-line) calc(var(--tab-flare) - 0.85px),
+    var(--tab-line) calc(var(--tab-flare) - 0.15px),
+    transparent calc(var(--tab-flare) + 0.6px)
+  );
+}
+
+.glide::after {
+  inset-inline-start: 100%;
+  background: radial-gradient(
+    circle at 100% 0,
+    transparent calc(var(--tab-flare) - 1.6px),
+    var(--tab-line) calc(var(--tab-flare) - 0.85px),
+    var(--tab-line) calc(var(--tab-flare) - 0.15px),
+    transparent calc(var(--tab-flare) + 0.6px)
+  );
+}
+
+/*
+ * The outline of the tab being read (NoteTabs.tsx `placeOutline`), laid under it rather than drawn by it: its sides
+ * stop a curve's height above the line, and the curves above hang from its lower corners down onto the line. A tab's
+ * own border runs to its foot, and with the tab see-through that straight foot showed beside each curve. The same
+ * outline slides from tab to tab when another is opened (Matt: "add an animation so the tab slides between items").
+ */
+.glide {
+  position: absolute;
+  z-index: -1;
+  box-sizing: border-box;
+  border: 1px solid var(--tab-line);
+  border-block-end: 0;
+  border-radius: var(--glacier-radius-md, 0.625rem) var(--glacier-radius-md, 0.625rem) 0 0;
+  pointer-events: none;
+}
+
+.glide:not([data-on]) {
+  display: none;
+}
+
+.tab[data-moving] {
+  transform: scale(1.04);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 35%);
+  transition: none;
+}
+
+.tab[data-moving] .name {
+  cursor: grabbing;
+}
+
+.name {
+  appearance: none;
+  /* A finger going up or down the page still scrolls it; going sideways along the row is the drag. */
+  touch-action: pan-y;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  max-inline-size: 16rem;
+  /* Between the two: bigger than the row was built, smaller than it grew to. */
+  /* Down a step again (Matt: "The tabs are just a bit big"). The air inside the pill gives, not the name: the label
+     was set to its size in the pass before this one and is the part that has to stay readable. */
+  /* And up a step (Matt: "Make the tabs and the pills inside them larger they feel a bit smaller than the rest of the
+     app"): the name a size up, and a little more air round it, which `--app-tab-h` (app.css) counts. */
+  padding: calc(var(--glacier-space-1) * 1.3) var(--glacier-space-1) calc(var(--glacier-space-1) * 1.3) var(--glacier-space-3);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  /* A step down (Matt: "also the text on the tabs is too large"), and back up with the pill beside it. */
+  font-size: var(--glacier-font-size-md);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The note's name: what gives way when the tab is too narrow, since the workspace beside it is two or three letters. */
+.title {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The workspace the note is filed in, in its own colour, before the name (Matt: "show the workspace pill first on
+ * the tab in it's colored pill so we can identity notes with the same name in different workspaces"). The same
+ * outlined pill the workspace bar itself wears (WorkspaceBar.module.css), at tab size.
+ */
+.space {
+  flex: none;
+  /*
+   * Eight characters of the workspace's name, and the ring around them (Matt: "make the pills longer than 3 chars
+   * minimum"). It was `7ch`, which reads as seven characters and is not: the box is border-box, so the 0.8em a side
+   * and the 1px ring come out of the seven, and the letters were left 29px of a 47px box - three of them and an
+   * ellipsis, against the 81px "Engineering" wants. Written as the text plus what wraps it, the number counts what it
+   * says it counts: the letters now have 56.2px, which is eight characters and a little over, since `ch` is the width
+   * of a zero and most letters are narrower.
+   */
+  max-inline-size: calc(8ch + 1.6em + 2px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /*
+   * An even ring of its own words: the line box has to be
+   * pinned to the words, or the ring is twice as thick at the sides as above and below.
+   *
+   * THE TAB'S HEIGHT IS MEASURED FROM THIS PADDING AND THIS SIZE: `.tab` above takes `--app-tab-h` (app.css) as its
+   * `min-block-size`, which is this pill's height, so a tab with a pill and a tab without are one height. It derives
+   * rather than copies, so changing either here carries it along - but the expression there names the font size, so
+   * a new size is changed in both. (Two others once matched it and have gone: the badge on the notes list's rows, and
+   * the list-row mode of plugins/LinkMarks.module.css, which only drew on those rows.)
+   * The pill has changed size four times in two days. A number copied into any of those would have been wrong within
+   * the hour and silently.
+   */
+  padding: 0.52em 0.8em;
+  border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
+  border-radius: var(--glacier-radius-full);
+  /* The pill keeps the room it has and spends it on air rather than letters (Matt: "the text inside the tab pills is
+     a little large - add more padding to make the tab take the same space but smaller text"). */
+  /* A step up, with the name (Matt: "Make the tabs and the pills inside them larger"). */
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1;
+  color: var(--app-space, var(--glacier-text-muted));
+}
+
+.close {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-6);
+  block-size: var(--glacier-space-6);
+  margin-inline-end: var(--glacier-space-1);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.close:hover,
+.close:active {
+  opacity: 1;
+}
+
+.name:focus-visible,
+.close:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: -2px;
+  border-radius: var(--glacier-radius-sm);
+}
+
+/* The + after the last tab: a bare glyph on the baseline, the size of a tab's own close, as a browser draws it. */
+.newTab {
+  pointer-events: auto;
+  appearance: none;
+  flex: none;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-6);
+  block-size: var(--glacier-space-6);
+  margin-inline-start: var(--glacier-space-1);
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-sm);
+  background: none;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.newTab:hover {
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.newTab:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: -2px;
+}
+
+/* ---- tab groups (notes/tabGroups.ts) ------------------------------------------------------------------------------- */
+
+/* A group's colour along the foot of each of its tabs. The colour is the workspace palette's (ink.css `[data-hue]`). */
+.groupLine {
+  position: absolute;
+  inset-inline: 0.35em;
+  inset-block-end: 0;
+  block-size: 2px;
+  border-radius: 2px;
+  background: var(--app-space, var(--app-ink-3));
+  pointer-events: none;
+  /*
+   * Moving between a group's tabs, the line under each one is drawn in and let out rather than switched (Matt: "some
+   * kind of animation for the bar under the tabs that are in a group so that it doesn't look so flashy when
+   * navigating between"). It was taken away from the tab being opened and put back under the one left, both in the
+   * same frame, while the outline slid between them - two jumps against one glide. Now the line draws in to its
+   * middle and fades as the outline arrives over it, and grows back out under the tab the outline has left, at the
+   * kit's own pace, so the speed chosen in Settings and a phone asking for less motion both reach it.
+   */
+  transform-origin: center;
+  transition:
+    transform var(--glacier-duration-normal, 250ms) var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+    opacity var(--glacier-duration-normal, 250ms) var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+}
+
+.tab[data-active] .groupLine {
+  transform: scaleX(0.2);
+  opacity: 0;
+}
+
+/* A tab put into a group gets its line the same way, drawn out from its middle rather than appearing at full width. */
+@starting-style {
+  .groupLine {
+    transform: scaleX(0.2);
+    opacity: 0;
+  }
+}
+
+/* The chip before a group's first tab: its name, in its colour. A target in a bar that passes clicks through. */
+.group {
+  pointer-events: auto;
+  position: relative;
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  margin-inline: 2px;
+}
+
+.groupChip {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  max-inline-size: 10rem;
+  padding: 0.3em 0.7em;
+  border: none;
+  border-radius: var(--glacier-radius-sm);
+  background: color-mix(in oklch, var(--app-space, var(--app-ink-3)) 22%, transparent);
+  color: var(--app-space, var(--app-ink-2));
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.groupChip:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
+/* How many tabs a folded group holds. */
+.groupCount {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.groupName {
+  inline-size: 8rem;
+  padding: 0.25em 0.6em;
+  border: 1px solid var(--app-space, var(--app-ink-3));
+  border-radius: var(--glacier-radius-sm);
+  background: transparent;
+  color: var(--app-ink, var(--glacier-text));
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+}
+
+/* Where a group's or a tab's menu hangs from: the foot of what was pressed. */
+.menuAnchor {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-end: 0;
+  inline-size: 0;
+  block-size: 0;
+}
+
+/* A colour in a menu: the dot beside its name. */
+.hueDot {
+  display: inline-block;
+  inline-size: 0.7em;
+  block-size: 0.7em;
+  border-radius: 50%;
+  background: var(--app-space, var(--app-ink-3));
+}
+
+/* The aside's toggle: the sidebar's icon, mirrored, at the row's far end. */
+.mirrored svg {
+  transform: scaleX(-1);
+}

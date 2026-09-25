@@ -1,0 +1,160 @@
+/*
+ * The AI card: paper-2 with a hairline, the reader on the left, the words
+ * and the readings on the right. Ink and paper only, like everything else;
+ * the one motion is the reader's, and the bars, which move as the readings do.
+ */
+
+.card {
+  display: flex;
+  gap: var(--glacier-space-4);
+  margin: var(--glacier-space-2) var(--app-gutter) var(--glacier-space-3);
+  padding: var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2, var(--glacier-surface-raised));
+  border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
+  animation: card-in 240ms var(--glacier-ease-out, ease-out) both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.reader {
+  flex: none;
+  inline-size: 4.5rem;
+  color: var(--app-ink, var(--glacier-text));
+}
+
+/* The reader is drawn for a whole screen (Thinking.module.css); here it is a corner of one. */
+.reader > * {
+  padding: 0;
+  min-block-size: 0;
+}
+
+.reader svg {
+  inline-size: 4.5rem;
+  block-size: 4.5rem;
+}
+
+.body {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+}
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--glacier-space-1) var(--glacier-space-3);
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+}
+
+.model {
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.size {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/* The point of it, said once, in a small pill of ink. */
+.local {
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+  background: var(--app-ink, var(--glacier-text));
+  color: var(--app-paper, var(--glacier-surface));
+}
+
+.line {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  animation: breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* The readings: two columns of label, value and a hairline bar. */
+.meters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--glacier-space-2) var(--glacier-space-4);
+  margin: 0;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--glacier-space-2);
+  align-items: baseline;
+  font-size: var(--glacier-font-size-xs);
+  line-height: var(--glacier-leading-sm);
+}
+
+.meterLabel {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.meterValue {
+  margin: 0;
+  color: var(--app-ink, var(--glacier-text));
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.bar {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  block-size: 2px;
+  border-radius: 1px;
+  background: color-mix(in oklch, var(--app-ink, currentColor) 14%, transparent);
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  block-size: 100%;
+  background: var(--app-ink, var(--glacier-text));
+  transition: inline-size 300ms ease-out;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--glacier-space-1) var(--glacier-space-4);
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .line {
+    animation: none;
+  }
+
+  .bar > span {
+    transition: none;
+  }
+}

@@ -1,0 +1,94 @@
+/*
+ * The Academy's live page (Playground.tsx): a field in the typewriter face, and under it the same words as the note
+ * draws them. Two halves of one card, with a rule between, so the eye goes from what was typed to what it became.
+ */
+
+.playground {
+  display: grid;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg, 0.75rem);
+  background: var(--app-paper, var(--glacier-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, currentColor 10%, transparent);
+}
+
+.part {
+  display: grid;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+}
+
+/* Which half is which, quietly: the field is the thing to look at, not its name. */
+.label {
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/*
+ * The field. Typewriter face, since every mark being taught is a character: a star has to look like a star. Nothing
+ * of the phone's help is on (Playground.tsx), and it grows with what is in it rather than scrolling inside itself.
+ */
+.field {
+  inline-size: 100%;
+  min-block-size: 4.5em;
+  margin: 0;
+  padding: var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-md, 0.5rem);
+  background: color-mix(in oklch, currentColor 5%, transparent);
+  color: var(--app-ink, var(--glacier-text));
+  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-md);
+  tab-size: 2;
+  resize: none;
+  overflow: hidden;
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--glacier-accent-solid, currentColor);
+  outline-offset: 1px;
+}
+
+.field::placeholder {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/* The note's own editor lives here; the rule above it is the line between typing and reading. */
+.shown {
+  min-block-size: 3em;
+  padding-block-start: var(--glacier-space-3);
+  border-block-start: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle, color-mix(in oklch, currentColor 14%, transparent));
+}
+
+/* The editor brings its own look; what is here is only the room it sits in (guide/MarkExample.module.css). */
+.shown :global(.cm-editor) {
+  background: none;
+}
+
+.shown :global(.cm-scroller) {
+  overflow: visible;
+  font-family: inherit;
+}
+
+.shown :global(.cm-content) {
+  padding: 0;
+  caret-color: transparent;
+}
+
+.shown :global(.cm-line) {
+  padding-inline: 0;
+}
+
+.shown :global(.cm-cursor),
+.shown :global(.cm-gutters) {
+  display: none;
+}
+
+.waiting {
+  margin: 0;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  font-size: var(--glacier-font-size-sm);
+}

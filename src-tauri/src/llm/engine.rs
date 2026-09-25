@@ -45,6 +45,7 @@ use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{LlamaStateSeqFlags, LogOptions, SeqState};
 use serde::Serialize;
 
+use super::hardware::{Hardware, Sampler};
 use super::prompt;
 
 /// The most tokens a context is ever made for. A long note and a long
@@ -97,6 +98,12 @@ pub struct Request {
     pub max_tokens: u32,
     /// 0 is greedy. The page sends 0.3 for a rewrite.
     pub temperature: f32,
+    /// Leave reasoning on for a model whose template has it: no empty thought.
+    pub think: bool,
+    /// Thinking tokens before the thought is closed for the model (0: no limit).
+    pub think_budget: u32,
+    /// Native-owned constrained output, never accepted from an IPC request.
+    pub grammar: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -115,6 +122,9 @@ pub struct Output {
     pub tokens_per_second: f32,
     /// Stopped by `max_tokens` rather than by the model finishing.
     pub truncated: bool,
+    /// The text starts with the model's reasoning, up to `</think>`: thinking
+    /// was asked for and the model's template has it.
+    pub thinking: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -140,8 +150,13 @@ pub struct Progress {
     pub elapsed_ms: u64,
     /// Everything written so far.
     pub partial: String,
+    /// `partial` starts with reasoning (see `Output::thinking`).
+    pub thinking: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// The phone under the model at this report (hardware.rs); None where it cannot be read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hardware: Option<Hardware>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -355,6 +370,8 @@ fn fail(mut job: Box<Job>, report: &mut Reporter, failure: Failure, counts: Coun
 
 #[derive(Debug, Clone, Copy, Default)]
 struct Counts {
+    /// Reasoning is on for this run and the stream begins with it.
+    thinking: bool,
     prompt_tokens: u32,
     prompt_tokens_done: u32,
     output_tokens: u32,
@@ -366,6 +383,8 @@ struct Reporter {
     started: Instant,
     last: Option<(Phase, Instant)>,
     message: Option<String>,
+    /// The phone's readings, one per report.
+    sampler: Sampler,
 }
 
 impl Reporter {
@@ -375,6 +394,7 @@ impl Reporter {
             started,
             last: None,
             message: None,
+            sampler: Sampler::new(),
         }
     }
 
@@ -399,7 +419,9 @@ impl Reporter {
             tokens_per_second: counts.tokens_per_second,
             elapsed_ms: self.started.elapsed().as_millis() as u64,
             partial: partial.unwrap_or_default(),
+            thinking: counts.thinking,
             message: self.message.clone(),
+            hardware: self.sampler.sample(threads() as u32),
         });
     }
 }
@@ -443,7 +465,9 @@ fn generate<'m>(
     let rendered = model
         .apply_chat_template(&template, &messages, true)
         .map_err(|e| error("cannot apply the chat template", &e))?;
-    let framed = prompt::frame(&rendered, thinks).map_err(Failure::Error)?;
+    // An empty thought switches reasoning off; a request that wants it gets none.
+    let framed = prompt::frame(&rendered, thinks && !request.think).map_err(Failure::Error)?;
+    counts.thinking = thinks && request.think;
     let prefix = model
         .str_to_token(&framed.prefix, AddBos::Never)
         .map_err(|e| error("cannot tokenize the prompt", &e))?;
@@ -453,7 +477,9 @@ fn generate<'m>(
 
     let max_tokens = request.max_tokens.clamp(1, MAX_OUTPUT_TOKENS);
     counts.prompt_tokens = (prefix.len() + rest.len()) as u32;
-    let n_ctx = context_for(counts.prompt_tokens, max_tokens, model);
+    // A thought closed for the model adds its closing words to the window.
+    let closing_room = if request.think && request.think_budget > 0 { 64 } else { 0 };
+    let n_ctx = context_for(counts.prompt_tokens, max_tokens + closing_room, model);
     if counts.prompt_tokens + 64 > n_ctx {
         return Err(Failure::Error(format!(
             "This note is too long to format on the phone: {} tokens of prompt, and the window is {n_ctx}. Try a shorter note, or split it.",
@@ -461,7 +487,7 @@ fn generate<'m>(
         )));
     }
     // The most the model may write inside this window.
-    let max_tokens = max_tokens.min(n_ctx - counts.prompt_tokens - 8);
+    let max_tokens = max_tokens.min(n_ctx - counts.prompt_tokens - 8 - closing_room);
 
     // A context that fits, made or remade.
     let remake = match ctx_slot.as_ref() {
@@ -483,8 +509,12 @@ fn generate<'m>(
     }
     let ctx = ctx_slot.as_mut().expect("a context was just ensured");
 
-    // Prefill: the prefix from its snapshot when it matches, else decoded and
-    // snapshotted; then the rest.
+    // Prefill: the immutable system/template prefix from its snapshot when it
+    // matches, else decoded and snapshotted; then the per-job user remainder.
+    // This clear is the session boundary: generated tokens and the previous
+    // request's user text leave the live KV before any snapshot is restored.
+    // The snapshot is captured before `rest`, so it cannot contain an earlier
+    // utterance (prompt.rs tests that boundary).
     let prefill_started = Instant::now();
     ctx.clear_kv_cache();
     let mut batch = LlamaBatch::new(CHUNK, 1);
@@ -507,8 +537,13 @@ fn generate<'m>(
     decode_prompt(ctx, &mut batch, &rest, prefix.len(), true, &job.cancel, &mut job.progress, report, counts, prefill_started)?;
     let prefill_ms = prefill_started.elapsed().as_millis() as u64;
 
-    // Generate. The sampler is per run: the repeat penalty remembers tokens.
-    let mut sampler = if request.temperature <= 0.0 {
+    // Generate. A command grammar is compiled from this binary's allowlist,
+    // never from web input. Free-form formatting keeps its existing sampler.
+    let mut sampler = if let Some(grammar) = request.grammar {
+        let grammar = LlamaSampler::grammar(model, grammar, "root")
+            .map_err(|e| error("cannot compile the command grammar", &e))?;
+        LlamaSampler::chain_simple([grammar, LlamaSampler::greedy()])
+    } else if request.temperature <= 0.0 {
         LlamaSampler::chain_simple([
             LlamaSampler::penalties(model.n_vocab(), REPEAT_LAST_N, REPEAT_PENALTY, 0.0, 0.0),
             LlamaSampler::greedy(),
@@ -529,6 +564,8 @@ fn generate<'m>(
     let mut logits_at = batch.n_tokens() - 1;
     let mut position = (prefix.len() + rest.len()) as i32;
     let mut truncated = false;
+    // Still inside the thought (only when thinking is on), and whether it was closed for the model.
+    let mut in_thought = counts.thinking;
     counts.tokens_per_second = 0.0;
     report.send(&mut job.progress, Phase::Generating, *counts, Some(String::new()));
     loop {
@@ -550,12 +587,29 @@ fn generate<'m>(
         counts.output_tokens += 1;
         counts.tokens_per_second = counts.output_tokens as f32 / generate_started.elapsed().as_secs_f32().max(1e-3);
         report.tick(&mut job.progress, Phase::Generating, *counts, &text);
+        if in_thought && text.contains("</think>") {
+            in_thought = false;
+        }
 
         batch.clear();
         batch.add(token, position, &[0], true).map_err(|e| error("cannot queue a token", &e))?;
         position += 1;
+        // A thought past its budget is closed in the model's own voice, and the
+        // answer is sampled after the close as if the model had written it.
+        let over_budget = in_thought && request.think_budget > 0 && counts.output_tokens >= request.think_budget;
+        if over_budget {
+            in_thought = false;
+            let cutoff = model
+                .str_to_token(prompt::THOUGHT_CUTOFF, AddBos::Never)
+                .map_err(|e| error("cannot tokenize the thought's close", &e))?;
+            for (i, closing) in cutoff.iter().enumerate() {
+                batch.add(*closing, position, &[0], i + 1 == cutoff.len()).map_err(|e| error("cannot queue a token", &e))?;
+                position += 1;
+            }
+            text.push_str(prompt::THOUGHT_CUTOFF);
+        }
         ctx.decode(&mut batch).map_err(|e| error("decoding failed", &e))?;
-        logits_at = 0;
+        logits_at = batch.n_tokens() - 1;
     }
 
     Ok(Output {
@@ -568,6 +622,7 @@ fn generate<'m>(
         load_ms,
         tokens_per_second: counts.tokens_per_second,
         truncated,
+        thinking: counts.thinking,
     })
 }
 

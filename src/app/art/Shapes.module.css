@@ -11,29 +11,6 @@
   transform-box: fill-box;
 }
 
-/* Empty archive: the last line dissolves into dots, left to right, and comes back. */
-.archive .dot {
-  animation: archive-dot 4.2s ease-in-out infinite;
-}
-
-@keyframes archive-dot {
-  0%,
-  30% {
-    opacity: 1;
-    transform: none;
-  }
-  50%,
-  70% {
-    opacity: 0;
-    transform: translateY(-5px) scale(0.3);
-  }
-  90%,
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 /* Welcome: the dot lands, the line writes out, a rest, then again. */
 .welcome .bullet {
   transform-origin: center;

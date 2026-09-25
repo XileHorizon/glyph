@@ -1,0 +1,42 @@
+/*
+ * The ghost (Ghost.tsx): a square of the page's ink, cut to the picture by its mask, so the dots take `currentColor`
+ * and turn with the theme. The colour is the page's to set; by default it is the quiet ink the abstract shapes wore.
+ */
+.ghost {
+  display: block;
+  flex: none;
+  aspect-ratio: var(--ghost-ratio, 1);
+  /*
+   * As big as the room allows (Matt: "they can be larger even still, try to fill 100% width or available height
+   * without going too big"): the column's whole width, but never more than part of the window's height, so it fits
+   * on the screen without scrolling, and never more than a ceiling, so a large monitor does not get a poster.
+   */
+  inline-size: min(100%, 28rem, calc(40dvh * var(--ghost-ratio, 1)));
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  background-color: currentColor;
+  -webkit-mask-image: var(--ghost-image);
+  mask-image: var(--ghost-image);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  /* Still: it used to drift up and back, and Matt asked for it not to ("I want the ghost pictures not to float"). */
+}
+
+.ghost[data-size='lead'] {
+  /* 45% of the height, not more: the page it leads has a header, a date and a notice above it and a dock below, and
+     at 60% a cropped ghost ran behind the dock's buttons on a laptop screen. */
+  inline-size: min(100%, 36rem, calc(45dvh * var(--ghost-ratio, 1)));
+}
+
+.ghost[data-align='center'] {
+  margin-inline: auto;
+}
+
+/* In a card: the height of a couple of lines of its words, so the card stays the size of a notice. */
+.ghost[data-size='tiny'] {
+  inline-size: auto;
+  block-size: 3rem;
+}

@@ -28,6 +28,8 @@ import java.io.File
 class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
   override fun doWork(): Result {
     val context = applicationContext
+    // The staging and dev apps (build.gradle.kts GLYPH_STAGING, GLYPH_CHANNEL) never update, so they never ask.
+    if (context.packageName.endsWith(".staging") || context.packageName.endsWith(".dev")) return Result.success()
     if (!UpdateAlerts.isEnabled(context) || !UpdateAlerts.canNotify(context)) return Result.success()
 
     val otaDir = File(context.dataDir, "ota").absolutePath

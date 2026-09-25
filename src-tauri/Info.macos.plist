@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the Mac app's Info.plist (tauri.conf.json bundle.macOS.infoPlist). Named for the Mac on purpose: Tauri
+  also merges a plain Info.plist into the iPhone build, which has its own (Info.ios.plist).
+
+  The Mac records through the WebView's getUserMedia (capture/audio.ts), and macOS refuses the microphone to an app
+  that does not say why it wants it - the ad-hoc desktop builds before this had no such line, so Speak could not have
+  worked on a Mac. The words match the phone's, since it is the same promise.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Glyph uses the microphone only while you are recording, to turn what you say into a note.</string>
+</dict>
+</plist>

@@ -1,0 +1,110 @@
+/*
+ * Words from smoke (WispText.tsx). Words are boxes that never break inside
+ * and letters are boxes inside them, so a letter can move without splitting
+ * its word; the gaps between words are plain text, so lines wrap as the type
+ * would anyway. The bend and the blur are an SVG filter set from script; the
+ * fade and the lift are these keyframes, run for exactly as long.
+ */
+
+.text {
+  position: relative;
+  white-space: pre-wrap;
+}
+
+.defs {
+  position: absolute;
+  inline-size: 0;
+  block-size: 0;
+  overflow: hidden;
+}
+
+.word {
+  display: inline-block;
+  white-space: pre;
+}
+
+.ch {
+  display: inline-block;
+  will-change: transform, filter, opacity;
+}
+
+/*
+ * Moving by words (WispText's `unit`): no layer held for every letter, only for a word while it moves. A layer a
+ * letter across a list of titles was most of the lag.
+ */
+.text[data-unit='word'] .ch {
+  will-change: auto;
+}
+
+.text[data-unit='word'] .word.new,
+.text[data-unit='word'] .word.out {
+  will-change: filter, opacity;
+}
+
+.hidden {
+  visibility: hidden;
+}
+
+.new {
+  animation: wispIn var(--dur, 900ms) ease-out both;
+}
+
+.out {
+  animation: wispOut var(--out, 460ms) ease-in both;
+}
+
+@keyframes wispIn {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  30% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes wispOut {
+  0% {
+    opacity: 1;
+    transform: none;
+  }
+  55% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+/* Reduced motion (chosen in script too): a change is the whole text fading in. */
+.faded {
+  animation: fadeIn 220ms ease-out both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .new,
+  .out {
+    animation: none;
+  }
+}
+
+/* The text for a screen reader, in one piece; the drawn letters are hidden from it. */
+.read {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -1,0 +1,120 @@
+/*
+ * The guide's table of marks (MarksTable.tsx): two columns, what you type and
+ * how it reads. The typed side is the note's mono face with its marks showing;
+ * the read side is the note's own editor (MarkExample.tsx), which brings its
+ * own look, so nothing here draws a mark a second way.
+ */
+
+.table {
+  margin-block-start: var(--glacier-space-6);
+}
+
+.group + .group {
+  margin-block-start: var(--glacier-space-8);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+}
+
+.groupLead {
+  margin: var(--glacier-space-1) 0 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-muted);
+}
+
+.rows {
+  margin-block-start: var(--glacier-space-3);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--glacier-space-4);
+  padding-block-end: var(--glacier-space-2);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--glacier-text-subtle);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--glacier-space-4);
+  align-items: start;
+  padding-block: var(--glacier-space-4);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+/* A board is a layout rather than a line: it takes the whole row, its example under what to type. */
+.row[data-looks='board'] {
+  grid-template-columns: 1fr;
+}
+
+.typed {
+  display: grid;
+  gap: var(--glacier-space-1);
+  justify-items: start;
+  min-inline-size: 0;
+}
+
+/* The mark itself, with its icon, so the eye finds it before the line. */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--app-wash, var(--glacier-surface-sunken));
+  color: var(--glacier-text-muted);
+}
+
+.symbol {
+  padding: 0.1em 0.4em;
+  border: var(--glacier-hairline) solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-md, 8px);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.code {
+  margin: 0;
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--glacier-text-muted);
+}
+
+.shown {
+  display: grid;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+}
+
+.name {
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.say {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+}

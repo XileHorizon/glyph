@@ -13,10 +13,69 @@
   /* The notch and home-indicator insets, named once so every surface that
      hugs an edge reads the same number. Real values only arrive because the
      viewport meta says viewport-fit=cover. */
-  --app-safe-top: env(safe-area-inset-top, 0px);
+  --app-inset-top: env(safe-area-inset-top, 0px);
+  /*
+   * The app's own tab bar (.app-tabBar, notes/NoteTabs.tsx), 0 until a route
+   * turns it on (`data-tabs`). Matt: "I want the tab nav to be the same height
+   * and dimensions across every route so make it part of the main app layout".
+   * It used to be a row each screen's header carried, which made it as tall as
+   * that screen felt like being.
+   */
+  --app-tabs: 0px;
+  /*
+   * How tall one tab in that bar draws (notes/NoteTabs.module.css `.tab`): the workspace pill's own height - a line
+   * of `--glacier-font-size-sm`, 0.52em above and below it, and its 1px ring - plus the air the name gives it.
+   *
+   * Here rather than in the stylesheet that uses it, because the BAR has to be this tall too, and the bar's height is
+   * this file's. It was `2.25rem`, a number that stood for the tab row and did not follow it: the kit's type scale
+   * grows with the window, so a tab drew 34.2px on a phone and 36.4px on a widescreen, and on a widescreen it hung
+   * 2.8px past the bar's own hairline (Matt: "tabs are rendering below the header line on widescreen displays"). One
+   * expression, read by the tab and by the bar around it, cannot do that.
+   */
+  --app-tab-h: calc(var(--glacier-font-size-sm) * 2.04 + 2px + var(--glacier-space-1) * 2.6);
+  /*
+   * And how tall the row above it draws: the round controls it holds (notes/NoteTabs.module.css `.sidebar` and
+   * `.step`, editor/NoteScreen.module.css `.cog`), which are all one expression off the kit's space scale.
+   *
+   * Derived for the same reason as the tab's: `3.5rem` stood for this row from when it held a 40px button, and the
+   * scale it is built on moves. Appearance > Spacing scales the space tokens, so these rings draw 27.4px at the
+   * tightest setting and 56.9px at the roomiest - 0.9px past the 56px the bar had set aside - and everything under
+   * them was pushed into the hairline. Both halves of the bar are their contents now, so neither can outgrow it.
+   */
+  --app-tab-top: calc(var(--glacier-space-10) * 0.88);
+  /*
+   * And the air under the bar's last row. Nothing on a phone, where the bar is glass with no edge to sit against; on
+   * a desktop it is the same as the air over the first row, set below with the hairline it clears.
+   */
+  --app-tab-bottom: 0px;
+  /*
+   * What every screen's header clears at the top: the notch or the Mac's title
+   * bar, and the tab bar under it. Headers pad by this and the wisp measures
+   * them, so the bar arriving moves every screen down without one of them
+   * knowing it exists.
+   */
+  --app-safe-top: calc(var(--app-inset-top) + var(--app-tabs));
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
   --app-safe-left: env(safe-area-inset-left, 0px);
   --app-safe-right: env(safe-area-inset-right, 0px);
+  /*
+   * The page's gutter at each edge, notch included: what the bar pads by, and what anything reaching past the bar's
+   * padding has to give back (notes/NoteTabs.module.css `.tabs`). Named once so the two cannot drift apart.
+   */
+  --app-gutter-start: calc(var(--app-safe-left, 0px) + var(--app-gutter));
+  /*
+   * The top bar's own left inset, which is NOT the page's gutter (Matt: "Sidebar toggle sits too far in from the
+   * left the padding on the left is too much", and of the row below it, "There is not enough padding on the left of
+   * the tabs bar causing the groups to be placed too far up against the edge"). Two complaints about one edge from
+   * either side of it: the buttons were a gutter in at 22px and the first tab was 4px in, so nothing in the bar
+   * lined up with anything else in it. One value now, used by the bar's padding and by the row that bleeds past it
+   * (notes/NoteTabs.module.css `.tabs`), so a button's ground and the tab under it start at the same place.
+   *
+   * Kept under the wisp's reach: the smoke at the row's start is drawn over the first 20px of the row's own box
+   * (art/wispSides.ts), so an inset larger than that would bend empty padding and read as a plain dark gradient.
+   */
+  --app-bar-start: calc(var(--app-safe-left, 0px) + var(--glacier-space-3));
+  --app-gutter-end: calc(var(--app-safe-right, 0px) + var(--app-gutter));
 
   /*
    * THE TYPE SCALE. Glyph is typography first: the words are the interface,
@@ -28,8 +87,14 @@
    * This reverses DESIGN section 3.3, which held headings one step BELOW the
    * kit map so a note would not read as a poster. Section 14 records why: the
    * poster is now the point.
+   *
+   * The default is a tenth under the kit's own steps (Matt: "Default text size a bit too large"). Body is set a step
+   * above the kit's reading size, and 0.9 of that lands it halfway back towards it - measured, 21.8px to 19.6 at
+   * 1280 wide and 19.5px to 17.6 on a phone - with every heading and title coming down by the same tenth, so the
+   * note keeps its shape. Only the default rung moves: Larger and Largest below are what a person chose for their
+   * eyes, and they keep exactly the size they chose.
    */
-  --app-text-scale: 1;
+  --app-text-scale: 0.9;
   /* The screen title: one word, set big enough to be the whole header. */
   --app-display: calc(var(--glacier-font-size-5xl) * 1.3);
   /* A note's title in the list. */
@@ -120,4 +185,481 @@ body {
    sits behind the on-screen keyboard and the home indicator. */
 #root {
   height: 100dvh;
+}
+
+/*
+ * The status bar's ground. The page is drawn edge to edge, so a list or a note
+ * scrolled up ran under the phone's clock and icons and they sat on words
+ * (Matt: "top content when scrolling intercepts the native top menu controls
+ * … We need a gradient to fix that at the top"). Solid paper across the bar
+ * and no further: a view scrolling under it has already gone to smoke by then
+ * (`--wisp-top-fade` reaches the bar's height in art/wispEdge.ts), so the old
+ * gradient tail below the bar is gone, and what the eye sees at the top of a
+ * page is the wisp dissolving rather than a black fade (Matt: "replace the
+ * areas where it's just a black fade and blur to use the wisp fade effect").
+ * Nothing can be touched through it, and it is zero high where there is no
+ * status bar, as on a desktop.
+ */
+/*
+ * The Mac app's title bar (core/platform.ts `data-titlebar`): the window draws
+ * under a transparent bar with its three buttons inset to sit in the middle of
+ * it (src-tauri/src/lib.rs), so the page treats the bar as its status bar.
+ * Every header already pads by `--app-safe-top`, and the scrim above paints
+ * the bar in paper, so this one value moves everything clear of the buttons.
+ * The drag strip over it moves the window, as a title bar does, and a double
+ * click zooms it.
+ */
+:root[data-titlebar='overlay'] {
+  --app-inset-top: 44px;
+}
+
+/*
+ * The app's tab bar, on the routes that have one (App.tsx sets `data-tabs`):
+ * the open notes and the way to the rest of them, in one row of one height,
+ * the same on the list as on a note. It sits under the notch and over the
+ * screen's own header pane, which paints the glass behind it - the pane
+ * reaches the top of the phone because its padding starts below the bar.
+ */
+:root[data-tabs='on'] {
+  /* A little taller than the row it holds, so the controls sit in the bar rather than against its top edge (Matt:
+     "add just a bit more padding around the tab bar ... the active tabs are a bit close to the top"): the bar's own
+     top padding, the row, and a breath under it. A clipped control is worse than a few pixels of chrome. */
+  --app-tabs: calc(var(--glacier-space-2) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-bottom));
+}
+
+/*
+ * With notes open the bar carries a second line of tabs under the controls, so it is that much taller (App.tsx sets
+ * 'rows'). Built from the one-line height, the gap the bar sets between its two rows (notes/NoteTabs.module.css
+ * `.bar`) and the tab's own height, rather than a number standing for the last two: a tab that grows now really does
+ * take the bar with it, which the `2.25rem` here only claimed to do.
+ */
+:root[data-tabs='rows'] {
+  --app-tabs: calc(
+    var(--glacier-space-2) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-h) + var(--glacier-space-1) +
+      var(--app-tab-bottom)
+  );
+}
+
+.app-tabBar {
+  position: fixed;
+  inset-block-start: var(--app-inset-top);
+  inset-inline: 0;
+  z-index: 5;
+  block-size: var(--app-tabs);
+  display: flex;
+  align-items: center;
+  padding-block-start: var(--glacier-space-2);
+  padding-block-end: var(--app-tab-bottom);
+  /*
+   * The bar keeps the page's own gutter, both ends.
+   *
+   * Two readings of the same edge, and Matt has now asked for each in turn: first that the sidebar button line up
+   * with the notes ("doesn't align with the left side of the screen's padding"), which I took as its glyph, so the
+   * box hung a few pixels further out; then that the button sits too close to the edge "compared to the padding on
+   * other content", which is that overhang seen from the other side. A button cannot have both its ground and the
+   * glyph inside it on one line, so the ground wins: it is the edge a person sees, especially with a mouse, where
+   * the ground is drawn under the pointer. The glyph sits its own half-inset in, as a button's glyph does everywhere.
+   */
+  padding-inline: var(--app-bar-start) var(--app-gutter-end);
+  /* Nothing of its own to paint: the header pane under it is the glass, and its own children take the taps. */
+  pointer-events: none;
+}
+
+/*
+ * On a window wide enough for the notes to sit beside a note, the bar takes a ground of its own right across the
+ * window (Matt: "the tabbar should go across 100% of the screen even on widescreen").
+ *
+ * It always did span the full width - measured at 1200px: left 0, width 1200 - but it is transparent, and the glass
+ * behind it belongs to whichever screen is under it. Split in two, that is two panes with a divider between them, so
+ * the row read as though it stopped at the divider and belonged to the left column. One ground across the top makes
+ * it one bar again. A phone keeps the glass, where there is only ever one pane under it and the wisp needs to show
+ * through.
+ */
+/* Asked of the root rather than of the width: App.tsx stamps `data-split` when the panes are up, so this rule and the
+   rule that puts them there cannot part company at some window size. */
+:root[data-split] .app-tabBar {
+  /*
+   * That ground is glass, not paper (Matt: "the top header is missing the glass effect, it's showing at the very top
+   * but the tabs and such are fully opaque"): the same mix and blur as the screen's own header pane, so the cards
+   * scrolled under the bar show through it as they do under the title strip above it, which is the pane alone.
+   */
+  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  /*
+   * From the window's top edge, not from under the status bar (Matt, of the Fold: "the very top bar where the time
+   * and battery show up still has the missing semiopaque black background like the rest of the headers have"). The
+   * bar began at `--app-inset-top`, and the pane's tint below starts where the bar ends, so the strip behind the
+   * clock had the pane's blur and nobody's tint: the scrolled cards showed through it lighter than through the bar,
+   * a soft grey gradient over a black bar. The bar now reaches the top and pads down by the inset, so the strip is
+   * the bar - one glass from the screen's edge to the bar's line. Its bottom edge, `--app-safe-top` and the pane's
+   * gradient are as they were, so nothing under it moves. The Mac's title strip is the same 44px, and its drag bar
+   * (z 41) still sits over this (z 5).
+   */
+  inset-block-start: 0;
+  padding-block-start: calc(var(--app-inset-top) + var(--glacier-space-2));
+  block-size: calc(var(--app-inset-top) + var(--app-tabs));
+}
+
+/*
+ * The line needs air above it, as much as the top of the bar has (Matt: "on desktop the tabs sit too close to the
+ * bottom line on the header"). Measured before: 12.7px from the bar's top to its controls, 3.1px from the tabs down
+ * to the line - the bar's height allowed a gap and a breath under the rows but no inset to match the one at the top.
+ * Set with the line and on the same condition, so the inset is there exactly where there is a line to clear. The
+ * height above grows by the same amount, so the rows keep their places and the room is added under them.
+ */
+:root[data-split] {
+  --app-tab-bottom: var(--glacier-space-2);
+}
+
+/*
+ * With tabs showing, they are the bar's bottom edge instead (Matt: "clean up the tabs to look like real tabs instead
+ * of pills"). A real tab stands on a line and the one being read opens into the page below it, so the air above the
+ * line goes and the tabs' own baseline (notes/NoteTabs.module.css `.tabs`) takes over from the bar's hairline - two
+ * lines one pixel apart would read as a double rule. The air stays where there are no tabs, over the bar's line.
+ */
+:root[data-split][data-tabs='rows'] {
+  --app-tab-bottom: 0px;
+}
+
+:root[data-split][data-tabs='rows'] .app-tabBar {
+  border-block-end-color: transparent;
+}
+
+/*
+ * The row inside the bar is a layout container, not a target: it fills the bar's width so the tabs can scroll inside
+ * it, and taking taps it swallowed every click in the top strip of the window - over the sidebar column and over the
+ * note (Matt: "the topbar and sidebar intercept still"). The things a finger aims at say so for themselves
+ * (notes/NoteTabs.module.css): the sidebar button, the arrows and each tab.
+ */
+.app-tabBar > * {
+  pointer-events: none;
+  min-inline-size: 0;
+}
+
+.app-dragBar {
+  display: none;
+}
+
+:root[data-titlebar='overlay'] .app-dragBar {
+  display: block;
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 41;
+  block-size: var(--app-inset-top);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.app-statusScrim {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 40;
+  block-size: var(--app-inset-top);
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--glacier-bg) 0, var(--glacier-bg) 78%, color-mix(in srgb, var(--glacier-bg) 0%, transparent) 100%);
+}
+
+/*
+ * A screen with a header pane covers the status bar itself, in glass, since its header pads by `--app-safe-top` and
+ * reaches the top of the phone. The scrim used to paint over that in solid paper, so the strip behind the clock was
+ * flat while the menu bar a few pixels below it was frosted (Matt: "top bar native bar doesnt have same blur as top
+ * bar menu bar"). Where there is a header, the header is the whole cover; where there is none - the list - the scrim
+ * stays as it was. A browser without `:has` keeps the old solid strip, which is the safe way round.
+ */
+body:has(.app-headerPane) .app-statusScrim {
+  display: none;
+}
+
+/*
+ * A view that scrolls under a header pane (art/wispEdge.ts marks it, and knows the header's height as `--wisp-under`):
+ * its scrollbar starts where the header ends (Matt: "On the home page the scrollbar goes behind the header"). The view
+ * runs the whole height so its words can pass under the glass, and so did its scrollbar, under the blur, from the
+ * window's top edge. Only where there is a pointer: styling a scrollbar gives up the platform's own, and on a phone
+ * the thin one that shows only while scrolling is the right one. A slim rounded thumb in the page's ink, on no track.
+ */
+@media (hover: hover) and (pointer: fine) {
+  [data-under-header]::-webkit-scrollbar {
+    inline-size: 12px;
+    width: 12px;
+    background: transparent;
+  }
+
+  [data-under-header]::-webkit-scrollbar-track {
+    background: transparent;
+    margin-block-start: max(var(--wisp-under, 0px), var(--app-safe-top, 0px));
+    margin-top: max(var(--wisp-under, 0px), var(--app-safe-top, 0px));
+  }
+
+  [data-under-header]::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+    background-color: color-mix(in oklch, var(--app-ink, currentColor) 22%, transparent);
+  }
+
+  [data-under-header]::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--app-ink, currentColor) 40%, transparent);
+  }
+}
+
+/*
+ * The wisp edge (art/wispEdge.ts): a view scrolled off its top goes to smoke
+ * where it slips behind its header, and fades out into it. The app's standard
+ * soft top; worn only while scrolled.
+ */
+/*
+ * A header pane over a wisp-edged scroller (art/wispEdge.ts): dark glass in
+ * the dark and light glass on paper, the page's own colour at two thirds
+ * over a blur of whatever runs under it (Matt: "it's not like a dark glass,
+ * it's solid black"). Tinted with the page's own paper rather than a lighter
+ * grey, so at the top of the page, with nothing under it, it is the page and
+ * nothing shows; once the page runs under it the blur reads as glass. The
+ * wisp sits a little way below its edge.
+ */
+.app-headerPane {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: 3;
+  background: color-mix(in srgb, var(--glacier-bg) 66%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
+}
+
+/*
+ * Under the split layout's bar, which is glass of its own across the whole window (`.app-tabBar` above), the pane's
+ * tint starts where the bar ends: two tints laid on each other would make the note's side of the divider darker than
+ * the sidebar's. The blur is still the pane's over its whole height - blur laid on blur looks the same as blur.
+ */
+:root[data-split] .app-headerPane {
+  background: linear-gradient(
+    to bottom,
+    transparent var(--app-safe-top, 0px),
+    color-mix(in srgb, var(--glacier-bg) 66%, transparent) var(--app-safe-top, 0px)
+  );
+}
+
+/*
+ * A view whose top is smoking, whose foot is, or both, and a mask that dissolves whichever end is going
+ * (`--wisp-top-fade` above, `--wisp-foot-fade` below; both 0 while that end isn't). Under a solid header the header
+ * hides the top, so only the foot fades.
+ *
+ * Each end has its own filter (art/WispEdgeFilter.tsx), and a view wears only the ends it asked for. They were one
+ * filter, so a view wearing it just for its foot also drew any header band another view had switched on - on a
+ * desktop, the note beside a scrolled sidebar smoked along its top.
+ */
+[data-wisp-edge] {
+  filter: url(#wispEdge);
+}
+
+[data-wisp-foot] {
+  filter: url(#wispEdgeFoot);
+}
+
+/* Both ends: one after the other. They never overlap, so the order is only which is drawn first. */
+[data-wisp-edge][data-wisp-foot] {
+  filter: url(#wispEdge) url(#wispEdgeFoot);
+}
+
+[data-wisp-edge],
+[data-wisp-foot] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--wisp-top-fade, 29px),
+    #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
+    transparent calc(100% - var(--wisp-foot-inset, 0px))
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--wisp-top-fade, 29px),
+    #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-foot-fade, 0px)),
+    transparent calc(100% - var(--wisp-foot-inset, 0px))
+  );
+}
+
+/*
+ * While the foot is smoking, the last stretch of the view dissolves into the paper below it - a short stretch, under
+ * the smoke rather than instead of it: the band's lip sits above it (art/wispEdge.ts `placeFoot`), so the words are
+ * bent while they can still be seen. At 30px the fade covered the lip and all that showed was the fade.
+ */
+[data-wisp-foot] {
+  /* Longer again, with the taller smoke over it (Matt: "Add a bit of combined black gradient or gradient opacity mask a
+     bit too"): the words dim as they smoke rather than smoking at full strength into a cut. */
+  --wisp-foot-fade: 48px;
+}
+
+/* A view smoking at its foot alone is crisp at its top: nothing is going under the header yet. */
+[data-wisp-foot]:not([data-wisp-edge]) {
+  --wisp-top-fade: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-wisp-edge],
+  [data-wisp-foot] {
+    filter: none;
+  }
+}
+
+/*
+ * The same smoke as a mask (art/wispMask.ts), for the engine that cannot afford the filter: no filter at all, and the
+ * band is an image of the torn edge laid along the lip - drawn once, moved by the drift, composited by the GPU.
+ * Two or three mask layers, added: the ramp that shows the words whole past the band and dissolves the foot's last
+ * stretch, the top's band tiled along the lip, and the foot's band, turned over, along the view's bottom edge (or
+ * the dock's top, `--wisp-foot-inset`). `--wisp-lip` is where the top band's lip sits, set by the hook; the image
+ * carries `--wisp-mask-above` of smoke over its lip, enough to reach the top of any header, and `--wisp-noise-x/y`
+ * are the drift.
+ */
+[data-wisp-draw='mask'][data-wisp-edge],
+[data-wisp-draw='mask'][data-wisp-foot] {
+  filter: none;
+  --wisp-tear-top: calc(var(--wisp-lip, 0px) + 76px);
+  --wisp-tear-foot: 104px;
+  --wisp-top-band-y: calc(var(--wisp-lip, 0px) - var(--wisp-mask-above, 160px) + var(--wisp-noise-y, 0px));
+  --wisp-foot-band-y: calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-mask-height, 256px) + var(--wisp-mask-above, 160px) - var(--wisp-noise-y, 0px));
+  -webkit-mask-composite: source-over;
+  mask-composite: add;
+}
+
+[data-wisp-draw='mask'][data-wisp-edge]:not([data-wisp-foot]) {
+  -webkit-mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top)), var(--wisp-mask-top);
+  mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top)), var(--wisp-mask-top);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x;
+  mask-repeat: no-repeat, repeat-x;
+}
+
+[data-wisp-draw='mask'][data-wisp-foot]:not([data-wisp-edge]) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-foot);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-foot);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x;
+  mask-repeat: no-repeat, repeat-x;
+}
+
+[data-wisp-draw='mask'][data-wisp-edge][data-wisp-foot] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top), #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-top), var(--wisp-mask-foot);
+  mask-image: linear-gradient(to bottom, transparent var(--wisp-tear-top), #000 var(--wisp-tear-top), #000 calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot)), transparent calc(100% - var(--wisp-foot-inset, 0px) - var(--wisp-tear-foot))), var(--wisp-mask-top), var(--wisp-mask-foot);
+  -webkit-mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y), var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  mask-position: 0 0, var(--wisp-noise-x, 0px) var(--wisp-top-band-y), var(--wisp-noise-x, 0px) var(--wisp-foot-band-y);
+  -webkit-mask-repeat: no-repeat, repeat-x, repeat-x;
+  mask-repeat: no-repeat, repeat-x, repeat-x;
+}
+
+/*
+ * Icons are outlines, with a wash inside the few that are one closed shape.
+ *
+ * Every icon used to carry the wash (Matt: "use the filled style we use on AttackFM", then "the icon fill should be
+ * slightly opaque, not solid"), but an icon is several shapes, and a fill set on the icon fills all of them: the
+ * mic's capsule and the arc around it, the cog's body and the hole in its middle, a shield and the tick inside it,
+ * a page and its lines. The inside doubled up and the detail went (Matt: "clean up icons in glacier UI so that
+ * icons like the microphone's fill doesn't double up on the inside stuff").
+ *
+ * So the wash is kept only where there is nothing inside to lose. Of the icons Glyph draws, these are the ones
+ * whose whole shape is a single closed silhouette; every other icon is its outline, which is what lucide draws by
+ * default. `.lucide` is the kit's icon internals showing through (@glacier/icons proxies lucide).
+ *
+ * Both rules are `:where()`, so they lose to any rule an icon's own stylesheet writes - but NOT to a `fill`
+ * attribute on the svg. A presentation attribute is not an author declaration at all: it sits below every author
+ * rule in the cascade, so it loses to a zero-specificity `:where()` exactly as it loses to anything else. Only an
+ * inline style declaration or `!important` beats one.
+ *
+ * So `<Bookmark fill={marked ? 'currentColor' : 'none'} />` could never have coloured that bookmark, and it did
+ * not: measured in both states, set and unset computed to this same 33% wash, and pressing the button changed
+ * nothing on screen for a day. An icon whose fill carries state has to say so in a style declaration or a class,
+ * never in the attribute (editor/NoteScreen.tsx).
+ */
+:where(svg.lucide) {
+  fill: none;
+}
+
+:where(svg.lucide-bookmark, svg.lucide-play, svg.lucide-puzzle, svg.lucide-square, svg.lucide-thermometer),
+:where(svg.lucide-pause, svg.lucide-layout-grid, svg.lucide-ellipsis-vertical),
+/*
+ * The board draws its own icons rather than importing them (editor/boards.ts), so none of the rules above could ever
+ * reach them and the hourglass over an empty "in progress" column stood out as the one hollow shape among filled
+ * ones. Its `fill="none"` is an attribute, which loses to this rule, as the note above explains.
+ */
+:where(svg.app-drawnIcon[data-icon='doing']) {
+  fill: color-mix(in srgb, currentColor 33%, transparent);
+}
+
+/*
+ * The desktop sidebar (App.tsx, core/useWideScreen.ts `useSidebar`): the notes
+ * list in a phone-width column on the left, the open note in the rest. Each
+ * pane is its screen as it is on a phone, sized to its column; the list's dock
+ * and the note's header stay inside their own pane.
+ */
+.app-split {
+  display: grid;
+  grid-template-columns: clamp(300px, 30vw, 380px) minmax(0, 1fr);
+  block-size: 100dvh;
+}
+
+.app-sidebar,
+.app-notePane {
+  position: relative;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.app-sidebar {
+  border-inline-end: 1px solid var(--glacier-border-subtle);
+}
+
+/* Hidden by the top bar's sidebar icon (App.tsx `dockShown`): the note takes the whole window. */
+.app-split[data-sidebar='hidden'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/*
+ * The right-hand aside (aside/Aside.tsx; Matt: "a right side aside menu that can pop out book indexes and list other
+ * notes from the workspace"): on the split layout a third column, shown and hidden by the tab row's mirrored
+ * sidebar icon (App.tsx `asideShown`), the same way the sidebar is a first column. Both hidden, the note takes the
+ * window; either alone, the note takes the rest.
+ */
+.app-split[data-aside='shown'] {
+  grid-template-columns: clamp(300px, 30vw, 380px) minmax(0, 1fr) clamp(240px, 22vw, 320px);
+}
+
+.app-split[data-sidebar='hidden'][data-aside='shown'] {
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 22vw, 320px);
+}
+
+.app-aside {
+  position: relative;
+  min-inline-size: 0;
+  overflow: hidden;
+  border-inline-start: 1px solid var(--glacier-border-subtle);
+}
+
+/* On a phone the aside comes over the note from the right, under a scrim that closes it. */
+.app-asideOver {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-asideScrim {
+  position: absolute;
+  inset: 0;
+  background: var(--app-scrim, rgb(0 0 0 / 40%));
+}
+
+.app-asidePanel {
+  position: relative;
+  inline-size: min(22rem, 86vw);
+  block-size: 100%;
+  background: var(--glacier-bg);
+  border-inline-start: 1px solid var(--glacier-border-subtle);
+  box-shadow: -12px 0 40px rgb(0 0 0 / 28%);
 }

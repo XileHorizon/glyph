@@ -35,6 +35,11 @@ fn chosen() -> &'static LlmSpec {
 }
 
 fn model_path() -> Option<PathBuf> {
+    // A model file outside the catalogue, to measure one before it is offered: `GLYPH_LLM_FILE=Qwen3.5-0.8B-Q4_K_M.gguf`.
+    if let Ok(file) = std::env::var("GLYPH_LLM_FILE") {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../models/llm").join(file);
+        return path.exists().then_some(path);
+    }
     let spec = chosen();
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../models/llm").join(spec.spec.file);
     let present = std::fs::metadata(&path).is_ok_and(|m| m.len() == spec.spec.bytes);
@@ -57,8 +62,13 @@ fn page_system_prompt() -> String {
 /// One of the page's prompts (src/app/format/prompt.ts), by the name of its
 /// `String.raw` constant, so what the Mac measures is what the phone sends.
 fn page_prompt(name: &str) -> String {
-    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/app/format/prompt.ts"))
-        .expect("prompt.ts is in the repository");
+    page_prompt_in("format/prompt.ts", name)
+}
+
+/// A prompt from any page file under `src/app/`, by the name of its `String.raw` constant.
+fn page_prompt_in(file: &str, name: &str) -> String {
+    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/app").join(file))
+        .unwrap_or_else(|_| panic!("{file} is in the repository"));
     // The declaration, not the docblock's mention of `String.raw` above it.
     let opener = format!("{name} = String.raw`");
     let start = source.find(&opener).unwrap_or_else(|| panic!("{name} is a String.raw literal")) + opener.len();
@@ -77,6 +87,9 @@ fn request(id: &str, system: &str, note: &str, max_tokens: u32) -> Request {
         prompt: note.to_string(),
         max_tokens,
         temperature: 0.3,
+        think: false,
+        think_budget: 0,
+        grammar: None,
     }
 }
 
@@ -96,7 +109,7 @@ fn run(path: &Path, request: Request, cancel: Arc<AtomicBool>, mut on: impl FnMu
 #[test]
 fn the_prompt_read_from_the_page_is_the_prompt() {
     let prompt = page_system_prompt();
-    assert!(prompt.starts_with("You are the editor inside Glyph"), "{prompt:.80}");
+    assert!(prompt.starts_with("You are the editor inside Ghost.md"), "{prompt:.80}");
     assert!(prompt.ends_with("no code fence around it."), "{prompt}");
 }
 
@@ -295,4 +308,140 @@ fn keeps_a_table_token_on_its_own_line() {
     assert!(text.lines().any(|l| l.trim() == "![table-1](table)"), "the token is on its own line:\n{}", output.text);
     assert!(!text.contains("|--") && !text.contains("| --"), "no table of its own:\n{}", output.text);
     eprintln!("{}", output.text);
+}
+
+/// The review prompt the page sends after a recording (src/app/review/prompt.ts).
+fn review_prompt() -> String {
+    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/app/review/prompt.ts"))
+        .expect("review/prompt.ts is in the repository");
+    let opener = "REVIEW_PROMPT = String.raw`";
+    let start = source.find(opener).expect("REVIEW_PROMPT is a String.raw literal") + opener.len();
+    let end = start + source[start..].find('`').expect("the literal closes");
+    source[start..end].trim().to_string()
+}
+
+/// A take as the review sees it: the fast model misheard "seek" and "HelloTrade",
+/// and one command put an item in this note when it was meant for HelloTrade.
+const REVIEW_TAKE: &str = "WHAT THE FAST SPEECH MODEL HEARD:\nBug bash on Friday. Fix the seat bar on two devices. Glyph, add update the readme to hello trade. Yes. Downloads get stuck on the discover list.\n\nWHAT THE SLOWER, MORE ACCURATE SPEECH MODEL HEARD:\nBug bash on Friday. Fix the seek bar on two devices. Glyph, add update the readme to HelloTrade. Yes. Downloads get stuck on the discover list.\n\nWHERE THEY DISAGREE (fast → slower):\n- …Friday. Fix the [seat → seek] bar on two…\n- …the readme to [hello trade. → HelloTrade.] Yes. Downloads…\n\nCOMMANDS THAT RAN:\n- Added “Update the readme” to Bug bash's list\n\nTHE PERSON'S NOTE TITLES:\nHelloTrade · Glyph Notes · Places to Go · Bug bash\n\nOTHER NOTE A COMMAND CHANGED, \"HelloTrade\":\n# HelloTrade\n\n- Ship the APK\n\nTHIS NOTE, \"Bug bash\", AS SAVED:\n# Bug bash on Friday\n\n- [ ] Fix the seat bar on two devices\n- [ ] Update the readme\n- [ ] Downloads get stuck on the discover list";
+
+/// The review with thinking on, judged by eye:
+/// `cargo test --lib llm::tests::prints_a_review -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn prints_a_review_with_its_thinking() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let mut req = request("review", &review_prompt(), REVIEW_TAKE, 1400);
+    req.think = true;
+    req.think_budget = 700;
+    let (result, events) = run(&path, req, Arc::default(), |_| {});
+    let output = result.expect("a review");
+    assert!(output.thinking, "Qwen's template thinks, and thinking was asked for");
+    assert!(events.iter().any(|e| e.thinking), "progress says the stream starts with thinking");
+    eprintln!(
+        "\n===== {} / review: {} out in {} ms, {:.1} tok/s{} =====\n{}\n=====",
+        chosen().id, output.output_tokens, output.ms, output.tokens_per_second, if output.truncated { " TRUNCATED" } else { "" }, output.text
+    );
+    let answer = output.text.split("</think>").nth(1).expect("the thinking closes before the answer");
+    assert!(answer.trim_start().starts_with('[') || answer.contains("```"), "the answer is the findings array: {answer}");
+}
+
+
+/// An item's mark (src/app/core/itemLinks.ts) goes through the model as
+/// `[notion](link-1)` at the end of its item; the page can put a lost one
+/// back, but the model keeping it in place is the half the page cannot test.
+#[test]
+fn keeps_an_item_mark_at_the_end_of_its_item() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let note = "ok so tomorrow I need to call the dentist before ten\n\n- [ ] buy milk on the way home [notion](link-1)\n- [ ] pick up the parcel from the post office";
+    let (result, _) = run(&path, request("mark", &page_system_prompt(), note, 512), Arc::default(), |_| {});
+    let output = result.expect("a generation");
+    let marked: Vec<&str> = output.text.lines().filter(|l| l.to_lowercase().contains("[notion](link-1)")).collect();
+    eprintln!("{}", output.text);
+    assert_eq!(marked.len(), 1, "the mark is on one line:\n{}", output.text);
+    let line = marked[0].trim();
+    assert!(line.starts_with("- ") || line.starts_with("* ") || line.chars().next().is_some_and(|c| c.is_ascii_digit()), "on a list item:\n{line}");
+    assert!(line.to_lowercase().ends_with("[notion](link-1)") || line.to_lowercase().ends_with("[notion](link-1)."), "at its end:\n{line}");
+    assert!(line.to_lowercase().contains("milk"), "on the milk item:\n{line}");
+}
+
+/// The gist (GIST_PROMPT): the one line under a note's title in the list.
+/// One line, a dozen words, no markdown.
+#[test]
+fn gists_a_note_in_one_short_line() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let (result, _) = run(&path, request("gist", &page_prompt("GIST_PROMPT"), SPOKEN, 40), Arc::default(), |_| {});
+    let output = result.expect("a generation");
+    let text = output.text.trim();
+    eprintln!("{text}");
+    let first = text.lines().next().unwrap_or("").trim();
+    assert!(!first.is_empty(), "says something");
+    assert!(first.split_whitespace().count() <= 14, "a dozen words or so:\n{text}");
+    assert!(!first.starts_with('#') && !first.starts_with('-'), "no markdown:\n{text}");
+    let lower = first.to_lowercase();
+    assert!(lower.contains("plumber") || lower.contains("weekend") || lower.contains("cabin") || lower.contains("report"), "about the note:\n{text}");
+}
+
+/// The command pass (src/app/capture/understand.ts): what the phone's models make of spoken commands the rules miss,
+/// as speech recognition wrote them, and how long each takes. Scored against what the command asked for; printed,
+/// not asserted, because this is the measurement a model is chosen by.
+///
+///   GLYPH_LLM_MODEL=qwen3.5-2b cargo test --release --lib llm::tests::understands_spoken_commands -- --ignored --nocapture
+///   GLYPH_LLM_FILE=Qwen3.5-0.8B-Q4_K_M.gguf cargo test --release --lib llm::tests::understands_spoken_commands -- --ignored --nocapture
+#[test]
+#[ignore]
+fn understands_spoken_commands() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let system = page_prompt_in("capture/understand.ts", "COMMAND_PROMPT");
+    let titles = ["Groceries", "HelloTrade launch", "AttackFM bug bash", "Weekend trip", "Work", "Reading list"];
+    let notes = titles.iter().map(|t| format!("- {t}")).collect::<Vec<_>>().join("\n");
+    // What was said after the keyword, and what it asks for: the action, and the note (empty when none).
+    let cases: [(&str, &str, &str); 24] = [
+        ("Add eggs to my groceries.", "add", "Groceries"),
+        ("Add X to my grocery list.", "add", "Groceries"),
+        ("Put oat milk on the shopping list.", "add", "Groceries"),
+        ("Can you stick bread in groceries", "add", "Groceries"),
+        ("Put call Sam on the work list.", "add", "Work"),
+        ("Put all some of the work list.", "add", "Work"),
+        ("Add a task to hello trade launch, ship the pricing page.", "add", "HelloTrade launch"),
+        ("New to do for the attack FM bug bash. The login button is broken.", "add", "AttackFM bug bash"),
+        ("Add the Dune books to my reading list.", "add", "Reading list"),
+        ("For the weekend trip note, book the ferry.", "add", "Weekend trip"),
+        ("Remember in the trip note to pack the tent.", "add", "Weekend trip"),
+        ("Switch to my groceries.", "switch", "Groceries"),
+        ("Go to the hello trade note.", "switch", "HelloTrade launch"),
+        ("Carry on in work.", "switch", "Work"),
+        ("Move this to the weekend trip.", "switch", "Weekend trip"),
+        ("New note.", "new", ""),
+        ("New load.", "new", ""),
+        ("Start a fresh note.", "new", ""),
+        ("Add a table to the bug bash with columns bug, owner and status.", "table", "AttackFM bug bash"),
+        ("Make a table.", "table", ""),
+        ("Add eggs to my holiday plans.", "none", ""),
+        ("The weather is lovely today.", "none", ""),
+        ("What time is it?", "none", ""),
+        ("Switch to the garden note.", "none", ""),
+    ];
+    let (mut right, mut total_ms) = (0, 0u128);
+    for (words, want, note) in cases {
+        let started = std::time::Instant::now();
+        let mut req = request("command", &system, &format!("Notes:\n{notes}\n\nCommand: {words}"), 96);
+        req.temperature = 0.0;
+        let (result, _) = run(&path, req, Arc::default(), |_| {});
+        let ms = started.elapsed().as_millis();
+        total_ms += ms;
+        let text = result.map(|o| o.text).unwrap_or_else(|e| format!("error: {e}"));
+        let answer = text.trim().replace('\n', " ");
+        let action_ok = answer.contains(&format!("\"action\":\"{want}\"")) || answer.contains(&format!("\"action\": \"{want}\""));
+        let note_ok = note.is_empty() || answer.contains(&format!("\"{note}\""));
+        let ok = action_ok && note_ok;
+        if ok {
+            right += 1;
+        }
+        println!("{} {ms:>5} ms  {words:<62} {answer}", if ok { "ok  " } else { "MISS" });
+    }
+    println!("\n{right}/{} right, {:.0} ms mean", cases.len(), total_ms as f64 / cases.len() as f64);
 }

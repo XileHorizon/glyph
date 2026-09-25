@@ -59,6 +59,12 @@ const SERVER = join(ROOT, 'server');
 const TARGET = 'x86_64-unknown-linux-gnu.2.35';
 const BIN = join(SERVER, 'target/x86_64-unknown-linux-gnu/release/glyph-api');
 const UNIT = join(SERVER, 'glyph-api.service');
+/** Claude's hosted MCP server (docs/MCP.md): one file, run by the box's Node as glyph-mcp.service, reached through glyph-api. */
+const MCP_BUNDLE = join(ROOT, 'mcp/dist/glyph-mcp-hosted.mjs');
+const MCP_UNIT = join(SERVER, 'glyph-mcp.service');
+const MCP_SERVICE = 'glyph-mcp';
+/** Must match GLYPH_MCP_BIND in server/glyph-mcp.service. */
+const MCP_PORT = 18820;
 
 const REMOTE = '/opt/glyph-api';
 const SERVICE = 'glyph-api';
@@ -116,6 +122,16 @@ function run(command, args, options = {}) {
 const curl = (args) => spawnSync('curl', ['-s', '-m', '25', ...args], { encoding: 'utf8' });
 
 /*
+ * `--mcp-only`: ship the hosted MCP server and nothing else - no cargo, and
+ * glyph-api on the box is not touched, restarted or backed up. For a change
+ * to the sign-in page or a tool, which is most of them. Either way, glyph-mcp
+ * is restarted only when its file or unit actually changed: a restart signs
+ * every connected person out (docs/MCP.md), and a glyph-api deploy is no
+ * reason for that.
+ */
+const MCP_ONLY = process.argv.includes('--mcp-only');
+
+/*
  * The same control socket deploy-ota.mjs uses. Run straight after
  * `deploy-ota.mjs --keep-connection`, this rides that deploy's login and
  * spends none of its own; on its own it logs in once, as before. One password
@@ -139,12 +155,18 @@ for (const tool of ['cargo', 'cargo-zigbuild', 'zig', 'sshpass', 'tar', 'curl'])
 
 // ---- build ------------------------------------------------------------------
 
-step('Testing the server');
-run('cargo', ['test', '--quiet'], { cwd: SERVER });
+if (!MCP_ONLY) {
+  step('Testing the server');
+  run('cargo', ['test', '--quiet'], { cwd: SERVER });
 
-step(`Cross-compiling for ${TARGET}`);
-run('cargo', ['zigbuild', '--release', '--target', TARGET], { cwd: SERVER });
-if (!existsSync(BIN)) fail(`Build produced no binary at ${BIN}.`);
+  step(`Cross-compiling for ${TARGET}`);
+  run('cargo', ['zigbuild', '--release', '--target', TARGET], { cwd: SERVER });
+  if (!existsSync(BIN)) fail(`Build produced no binary at ${BIN}.`);
+}
+
+step('Building the hosted MCP server');
+run('node', [join(ROOT, 'scripts/build-mcp.mjs')]);
+if (!existsSync(MCP_BUNDLE)) fail(`The MCP build left nothing at ${MCP_BUNDLE}.`);
 
 // ---- ship and install -------------------------------------------------------
 
@@ -156,6 +178,7 @@ const INSTALL = `set -euo pipefail
 SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
 STAGE="$HOME/${STAGE}"
 stamp=$(date -u +%Y%m%d-%H%M%S)
+MCP_ONLY=${MCP_ONLY ? 1 : 0}
 [ \${#GLYPH_API_TOKEN_NEW} -eq 64 ] || { echo "the token did not arrive on stdin"; exit 1; }
 
 # A system user of its own, like attackfm's: no home, no shell, no password.
@@ -168,6 +191,8 @@ $SUDO install -d -o root -g root -m 755 ${REMOTE} ${REMOTE}/bin
 # half of one. Unset straight after, so nothing started below inherits it.
 # The Notion client ID and secret travel the same way, and are written only
 # when both came (an empty line each when they did not).
+backup=
+if [ "$MCP_ONLY" != 1 ]; then
 {
   printf 'GLYPH_API_TOKEN=%s\\n' "$GLYPH_API_TOKEN_NEW"
   if [ -n "$NOTION_CLIENT_ID_NEW" ] && [ -n "$NOTION_CLIENT_SECRET_NEW" ]; then
@@ -175,12 +200,10 @@ $SUDO install -d -o root -g root -m 755 ${REMOTE} ${REMOTE}/bin
     printf 'NOTION_CLIENT_SECRET=%s\\n' "$NOTION_CLIENT_SECRET_NEW"
   fi
 } | $SUDO tee ${REMOTE}/glyph-api.env.new >/dev/null
-unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW
 $SUDO chown root:root ${REMOTE}/glyph-api.env.new
 $SUDO chmod 600 ${REMOTE}/glyph-api.env.new
 $SUDO mv -f ${REMOTE}/glyph-api.env.new ${REMOTE}/glyph-api.env
 
-backup=
 if [ -f ${REMOTE}/bin/glyph-api ]; then
   backup=${REMOTE}/bin/glyph-api.bak-$stamp
   $SUDO cp -a ${REMOTE}/bin/glyph-api "$backup"
@@ -194,7 +217,28 @@ fi
 $SUDO install -o root -g root -m 755 "$STAGE/glyph-api" ${REMOTE}/bin/glyph-api.new
 $SUDO mv -f ${REMOTE}/bin/glyph-api.new ${REMOTE}/bin/glyph-api
 $SUDO install -o root -g root -m 644 "$STAGE/glyph-api.service" /etc/systemd/system/${SERVICE}.service
+fi
+unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW
+
+# Claude's hosted MCP server beside it: the one file, renamed into place like the binary, and its own unit. Only
+# when either changed: a restart signs everyone out, so an unchanged server is left running. The previous file is
+# kept as .prev for a way back.
+$SUDO install -d -o root -g root -m 755 ${REMOTE}/mcp
+mcp_changed=
+if ! cmp -s "$STAGE/glyph-mcp-hosted.mjs" ${REMOTE}/mcp/glyph-mcp-hosted.mjs || ! cmp -s "$STAGE/glyph-mcp.service" /etc/systemd/system/${MCP_SERVICE}.service; then
+  mcp_changed=1
+  [ -f ${REMOTE}/mcp/glyph-mcp-hosted.mjs ] && $SUDO cp -a ${REMOTE}/mcp/glyph-mcp-hosted.mjs ${REMOTE}/mcp/glyph-mcp-hosted.mjs.prev
+  $SUDO install -o root -g root -m 644 "$STAGE/glyph-mcp-hosted.mjs" ${REMOTE}/mcp/glyph-mcp-hosted.mjs.new
+  $SUDO mv -f ${REMOTE}/mcp/glyph-mcp-hosted.mjs.new ${REMOTE}/mcp/glyph-mcp-hosted.mjs
+  $SUDO install -o root -g root -m 644 "$STAGE/glyph-mcp.service" /etc/systemd/system/${MCP_SERVICE}.service
+fi
 $SUDO systemctl daemon-reload
+$SUDO systemctl enable ${MCP_SERVICE} >/dev/null 2>&1
+if [ -n "$mcp_changed" ] || ! $SUDO systemctl is-active --quiet ${MCP_SERVICE}; then
+  $SUDO systemctl restart ${MCP_SERVICE} || true
+fi
+
+if [ "$MCP_ONLY" != 1 ]; then
 $SUDO systemctl enable ${SERVICE} >/dev/null 2>&1
 # A failed start is not fatal HERE: the health loop below is what decides,
 # and it is the one place that knows how to put the backup back.
@@ -214,11 +258,23 @@ if [ -z "$healthy" ]; then
   fi
   exit 1
 fi
+fi
+mcp_healthy=
+for _ in $(seq 1 20); do
+  if curl -fsS -m 5 http://127.0.0.1:${MCP_PORT}/glyph/api/mcp/health >/dev/null 2>&1; then mcp_healthy=1; break; fi
+  sleep 0.5
+done
+if [ -z "$mcp_healthy" ]; then
+  $SUDO journalctl -u ${MCP_SERVICE} -n 30 --no-pager || true
+fi
 rm -rf "$STAGE"
 echo "STAMP $stamp"
 echo "BACKUP \${backup:-none}"
 echo "ACTIVE $($SUDO systemctl is-active ${SERVICE})"
 echo "LOOPBACK $(curl -s -m 5 http://127.0.0.1:${PORT}/glyph/api/health)"
+echo "MCP_ACTIVE $($SUDO systemctl is-active ${MCP_SERVICE})"
+echo "MCP_CHANGED \${mcp_changed:-0}"
+echo "MCP_LOOPBACK $(curl -s -m 5 http://127.0.0.1:${MCP_PORT}/glyph/api/mcp/health)"
 `;
 
 /**
@@ -239,8 +295,12 @@ echo "LOOPBACK $(curl -s -m 5 http://127.0.0.1:${PORT}/glyph/api/health)"
 function ship(env) {
   const local = mkdtempSync(join(tmpdir(), 'glyph-api-'));
   try {
-    copyFileSync(BIN, join(local, 'glyph-api'));
-    copyFileSync(UNIT, join(local, 'glyph-api.service'));
+    if (!MCP_ONLY) {
+      copyFileSync(BIN, join(local, 'glyph-api'));
+      copyFileSync(UNIT, join(local, 'glyph-api.service'));
+    }
+    copyFileSync(MCP_BUNDLE, join(local, 'glyph-mcp-hosted.mjs'));
+    copyFileSync(MCP_UNIT, join(local, 'glyph-mcp.service'));
     writeFileSync(join(local, 'install.sh'), INSTALL);
     // --no-xattrs: macOS stamps com.apple.provenance on everything, and GNU
     // tar on the box prints a warning per file for each one it cannot place.
@@ -280,10 +340,12 @@ function ship(env) {
   }
 }
 
-step('Shipping and installing glyph-api (one ssh session)');
+step(MCP_ONLY ? `Shipping and installing ${MCP_SERVICE} only (one ssh session)` : 'Shipping and installing glyph-api (one ssh session)');
 const installed = ship(env);
 const field = (name) => new RegExp(`^${name} (.*)$`, 'm').exec(installed)?.[1] ?? '';
 ok(`${SERVICE} is ${field('ACTIVE')} on 127.0.0.1:${PORT} ${c.dim(field('LOOPBACK'))}`);
+if (field('MCP_ACTIVE') !== 'active') fail(`${MCP_SERVICE} is ${field('MCP_ACTIVE') || 'not reporting'} (its journal is above).`);
+ok(`${MCP_SERVICE} is active on 127.0.0.1:${MCP_PORT} ${c.dim(field('MCP_LOOPBACK'))}${field('MCP_CHANGED') === '1' ? '' : c.dim(' (unchanged, left running)')}`);
 
 // ---- prove it ---------------------------------------------------------------
 
@@ -328,8 +390,23 @@ if (env.NOTION_CLIENT_ID) {
   ok(`Sign in with Notion hands off to api.notion.com (${code})`);
 }
 
+// Claude's server, through the proxy: the one path a person's Claude will take.
+const mcpHealth = curl(['-w', '\n%{http_code}', `${API}/mcp/health`]);
+const mcpCode = mcpHealth.stdout.split('\n').pop();
+if (mcpCode !== '200') fail(`${API}/mcp/health answered ${mcpCode}: the proxy route in glyph-api or ${MCP_SERVICE} is not right.`);
+const discovery = curl(['-o', '/dev/null', '-w', '%{http_code}', `${API}/mcp/.well-known/openid-configuration`]).stdout;
+if (discovery !== '200') fail(`${API}/mcp/.well-known/openid-configuration answered ${discovery}.`);
+const challenged = curl(['-o', '/dev/null', '-w', '%{http_code}', '-X', 'POST', '-H', 'Content-Type: application/json', '--data', '{}', `${API}/mcp`]).stdout;
+if (challenged !== '401') fail(`a POST to ${API}/mcp without a token answered ${challenged}, expected 401.`);
+ok(`${API}/mcp answers: health, discovery, and 401 without a token`);
+
+if (field('MCP_CHANGED') === '1') {
+  console.log(c.dim(`  rollback (${MCP_SERVICE}): sudo mv -f ${REMOTE}/mcp/glyph-mcp-hosted.mjs.prev ${REMOTE}/mcp/glyph-mcp-hosted.mjs && sudo systemctl restart ${MCP_SERVICE}`));
+}
 const backup = field('BACKUP');
-if (backup && backup !== 'none') {
+if (MCP_ONLY) {
+  // glyph-api was not touched: nothing of it to roll back.
+} else if (backup && backup !== 'none') {
   console.log(
     c.dim(`  rollback: sudo cp -a ${backup} ${REMOTE}/bin/glyph-api && sudo systemctl restart ${SERVICE}`),
   );

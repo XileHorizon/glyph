@@ -29,13 +29,13 @@
 
 .row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   overflow-x: auto;
   scrollbar-width: none;
-  border-radius: 999px;
+  border-radius: 18px;
   background: var(--app-paper-2, var(--glacier-surface-raised));
   border: var(--glacier-hairline) solid var(--app-rule, var(--glacier-border-subtle));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
 .row::-webkit-scrollbar {
@@ -61,9 +61,15 @@
 .item {
   appearance: none;
   flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   margin: 0;
   /* Snug enough that Cut, Copy, Paste, Select all and Add image share one phone width. */
-  padding: 0 calc(var(--glacier-space-3) - 2px);
+  padding: var(--glacier-space-2) calc(var(--glacier-space-3) - 2px);
+  min-inline-size: 3.5rem;
   min-block-size: var(--glacier-space-11, 2.75rem);
   border: none;
   background: none;
@@ -74,6 +80,13 @@
   white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* The word under its icon: small, but in display weight. */
+.word {
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .item + .item {
@@ -100,4 +113,35 @@
   font-size: var(--glacier-font-size-xs, 0.75rem);
   color: var(--app-ink-3, var(--glacier-text-muted));
   white-space: nowrap;
+}
+
+/* A style lit while it applies: printed in reverse, like a chosen row. */
+.style[data-lit] {
+  background: var(--app-ink, var(--glacier-text));
+  color: var(--app-paper, var(--glacier-bg));
+}
+
+/* The styles come in out of smoke, one after another along the band. */
+.style {
+  animation: styleIn 260ms var(--glacier-ease-out, ease-out) both;
+  animation-delay: calc(var(--i, 0) * 22ms);
+}
+
+@keyframes styleIn {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .style {
+    animation: none;
+  }
+}
+
+/* Where the marks end and the line forms begin, and again before the inserts: the same hairline, and a breath of room. */
+.style[data-group] {
+  margin-inline-start: var(--glacier-space-2);
 }

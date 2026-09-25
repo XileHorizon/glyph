@@ -1,0 +1,18 @@
+[package]
+name = "glyph-host-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "glyph_host_tests"
+path = "src/lib.rs"
+
+# Exactly the dependencies store.rs and llm/command.rs use, at the versions
+# src-tauri/Cargo.toml pins. Nothing else: adding a dependency here that the
+# real crate does not have would make these tests prove something else.
+[dependencies]
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.26.1", features = ["v4"] }

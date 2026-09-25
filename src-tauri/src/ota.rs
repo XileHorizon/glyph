@@ -127,13 +127,32 @@ use tauri::{AppHandle, Manager, Runtime, State};
 /// pressed to stop - Notion: `notion_save_account`, `notion_account`,
 /// `notion_disconnect`, `notion_request` - and `GlyphHost.readClipboard` for
 /// the editor's Paste (1.0.0).
-pub const NATIVE_GENERATION: u32 = 12;
+///
+/// 13: `ai_generate` takes `think`, which leaves a reasoning model's thinking
+/// on and streams it ahead of the answer, flagged `thinking` on progress and
+/// output - for the review after a recording (1.1.0).
+///
+/// 14: `hardware` on the model's progress - memory, process CPU, cores, the
+/// hottest readable thermal zone - for the AI card (1.2.0).
+///
+/// 15: notes are a library of Markdown files (library/, docs/LIBRARY.md) in the
+/// app's storage, moved in from the old database on first launch; every note
+/// carries its `path` (1.3.0).
+///
+/// 16: `store_apply`, a note written as another device has it, and
+/// `sync_put_file`, a synced recording or picture, for sync (docs/SYNC.md).
+///
+/// 17: `link_preview`, a web page's title for the card under a link.
+///
+/// 18: revision-checked note create/update, guarded command mutation/undo,
+/// and constrained local instruction inference.
+pub const NATIVE_GENERATION: u32 = 18;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in
 /// Rust reads it but the test that keeps it at or under `NATIVE_GENERATION`.
 #[allow(dead_code)]
-pub const BUNDLE_REQUIRES: u32 = 1;
+pub const BUNDLE_REQUIRES: u32 = 18;
 
 /// The public keys a manifest must be signed by (any one of them). Compiled in:
 /// trust belongs to whoever holds a private key, never to whichever domain
@@ -153,6 +172,11 @@ const COMPILED_SOURCES: &str = include_str!("../ota-sources.txt");
 /// where its code comes from. (Signatures would still refuse a foreign bundle,
 /// but a test knob has no business in a shipped binary's attack surface.)
 const TEST_SOURCE: Option<&str> = option_env!("GLYPH_OTA_BASE");
+
+/// `GLYPH_STAGING` at COMPILE time (the same switch build.gradle.kts reads):
+/// a staging build runs beside the real app under its own id and never checks
+/// for updates, so the page it was built with is the page that runs.
+pub const STAGING: bool = option_env!("GLYPH_STAGING").is_some();
 
 /// Signature contexts, so a signature over one kind of file cannot be replayed
 /// as another. They must match scripts/ota-sign.mjs byte for byte.
@@ -897,6 +921,9 @@ pub async fn ota_check<R: Runtime>(app: AppHandle<R>, state: State<'_, OtaState>
     }
     #[cfg(not(target_os = "ios"))]
     {
+        if STAGING {
+            return Ok(CheckResult { web: "current", web_build: None, web_version: None, apk: None, error: None, source: None });
+        }
         let client = client()?;
         let root = root(&app)?;
         let sources = effective_sources(&read_known(&root));

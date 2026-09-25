@@ -6,7 +6,7 @@ describe('the prompts', () => {
   it('has one per mode, each keeping links as tokens and asking for markdown alone', () => {
     for (const { id } of MODES) {
       const prompt = promptFor(id);
-      expect(prompt.startsWith('You are the editor inside Glyph')).toBe(true);
+      expect(prompt.startsWith('You are the editor inside Ghost.md')).toBe(true);
       expect(prompt).toContain('[the words](link-1)');
       expect(prompt.endsWith('no code fence around it.')).toBe(true);
     }

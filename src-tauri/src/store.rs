@@ -56,14 +56,14 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// SELECT that grows a column in one query and not the others fails at the far
 /// end of an `invoke`, in a `row_to_note` that is reading the wrong index,
 /// which is a long way from the edit that caused it.
-const NOTE_COLUMNS: &str = "id, body, created_at, updated_at, source, starred, archived_at, recording_ms, segments, formatted, formatted_for, formatted_model";
+const NOTE_COLUMNS: &str = "id, body, created_at, updated_at, source, starred, archived_at, recording_ms, segments, formatted, formatted_for, formatted_model, revision";
 
 /// `NOTE_COLUMNS` for the list: the same shape, with `segments` read as NULL.
 /// A recording's segments are the text of every phrase with its timing - about
 /// 10 KB for ten minutes of talk - and the list is fetched every time the app
 /// comes to the front. The tapes need only the length; the player asks for
 /// one note, and gets its segments from `get_note`.
-const LIST_COLUMNS: &str = "id, body, created_at, updated_at, source, starred, archived_at, recording_ms, NULL, NULL, formatted_for, formatted_model";
+const LIST_COLUMNS: &str = "id, body, created_at, updated_at, source, starred, archived_at, recording_ms, NULL, NULL, formatted_for, formatted_model, revision";
 
 /// The schema, exactly as DESIGN.md section 5 specifies it, applied on every
 /// open.
@@ -99,7 +99,19 @@ const SCHEMA: &str = "
         duration_ms INTEGER,
         state TEXT
     );
+    CREATE TABLE IF NOT EXISTS command_mutations (
+        id TEXT PRIMARY KEY,
+        note_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        before_body TEXT,
+        after_body TEXT NOT NULL,
+        before_revision INTEGER,
+        after_revision INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        undone_at INTEGER
+    );
     CREATE INDEX IF NOT EXISTS notes_updated_at ON notes (updated_at DESC);
+    CREATE INDEX IF NOT EXISTS command_mutations_note ON command_mutations (note_id, created_at DESC);
 ";
 
 /// Columns added after the first schema, each with the DDL that adds it.
@@ -139,6 +151,7 @@ const ADDED_COLUMNS: &[(&str, &str)] = &[
     ("recording_ms", "ALTER TABLE notes ADD COLUMN recording_ms INTEGER"),
     ("segments", "ALTER TABLE notes ADD COLUMN segments TEXT"),
     ("formatted_model", "ALTER TABLE notes ADD COLUMN formatted_model TEXT"),
+    ("revision", "ALTER TABLE notes ADD COLUMN revision INTEGER NOT NULL DEFAULT 1"),
 ];
 
 fn add_missing_columns(conn: &Connection) -> rusqlite::Result<()> {
@@ -234,7 +247,7 @@ pub struct Note {
     /// Milliseconds since the epoch. Moved by every save.
     pub updated_at: i64,
     /// Where the note came from - "editor", "capture", and whatever the side
-    /// key learns to say about itself. A birth fact: see `save_note`.
+    /// key learns to say about itself. A birth fact: see `create_note`.
     pub source: String,
     /// Pinned to the top of the list.
     pub starred: bool,
@@ -252,6 +265,57 @@ pub struct Note {
     pub formatted_for: Option<i64>,
     /// The model that wrote it, by the page's id.
     pub formatted_model: Option<String>,
+    /// Where the note's file is in the library (library/), relative to it: `Inbox/AttackFM.md`.
+    /// None for a note read from the old database.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// Monotonic body version. Command mutations compare this before writing,
+    /// so a preview can never overwrite an edit made after it was shown.
+    #[serde(default = "default_revision")]
+    pub revision: i64,
+}
+
+fn default_revision() -> i64 {
+    1
+}
+
+/// One atomic command write. `before_revision = None` creates a note; a
+/// number updates exactly that version. The caller supplies final Markdown,
+/// but only deterministic application code is allowed to construct it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandMutation {
+    pub id: String,
+    pub note_id: String,
+    pub kind: String,
+    pub before_revision: Option<i64>,
+    pub before_body: Option<String>,
+    pub after_body: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case", rename_all_fields = "camelCase")]
+pub enum CommandMutationResult {
+    Applied { mutation_id: String, note: Note },
+    Conflict { current: Option<Note> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case", rename_all_fields = "camelCase")]
+pub enum CommandUndoResult {
+    Undone { mutation_id: String, note: Option<Note> },
+    Conflict { current: Option<Note> },
+    AlreadyUndone,
+    NotFound,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingCommandUndo {
+    pub mutation_id: String,
+    pub note_id: String,
+    pub kind: String,
+    pub created_at: i64,
 }
 
 /// One committed phrase of a recording, as the page's `Segment` has it.
@@ -294,6 +358,16 @@ impl Recording {
             }
         }
         Ok(Recording { ms, segments })
+    }
+
+    /// The recording's length in milliseconds.
+    pub fn ms(&self) -> i64 {
+        self.ms
+    }
+
+    /// Its phrases, in order.
+    pub fn segments(&self) -> &[RecordedSegment] {
+        &self.segments
     }
 }
 
@@ -364,6 +438,8 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         formatted: row.get::<_, Option<String>>(9)?,
         formatted_for: row.get::<_, Option<i64>>(10)?,
         formatted_model: row.get::<_, Option<String>>(11)?,
+        path: None,
+        revision: row.get::<_, Option<i64>>(12)?.unwrap_or(1),
     })
 }
 
@@ -446,42 +522,185 @@ impl Store {
         Ok(note)
     }
 
-    /// Writes a note, whether or not it already exists, and answers with what
-    /// is now on disk.
+    /// Creates a note only while its id is unused. Existing-note writers must
+    /// call [`Store::update_note`]: separating birth from update is what makes
+    /// deletion final. A stale editor, capture draft, or refine job can still
+    /// hold an id after the row is deleted, but it has no API that can insert
+    /// that id again.
     ///
-    /// ONE statement, not a SELECT followed by an INSERT or an UPDATE. Two
-    /// processes write this file: between a read that found no row and the
-    /// INSERT that followed it, the capture service can have written one.
-    /// `ON CONFLICT` hands that decision to SQLite, which is holding the write
-    /// lock at the time and is the only party in a position to make it.
-    ///
-    /// Which columns move is a rule worth naming, because half of them do not.
-    /// `created_at` and `source` are facts about the note's BIRTH and are
-    /// never rewritten; `body` and `updated_at` are facts about its present
-    /// and always are. So a note dictated at the side key still says it came
-    /// from a capture after it has been edited in the app - the provenance is
-    /// the interesting half of `source`, and an editor save passing its own
-    /// "editor" would erase it on the first keystroke. A caller saving an
-    /// existing note may pass whatever source it likes; it is ignored, on
-    /// purpose.
-    ///
-    /// The note is read back rather than assembled from the arguments, so the
-    /// `createdAt` the page receives is the one in the file and not the one
-    /// this call would have written had it been an insert.
-    pub fn save_note(&self, id: &str, body: &str, source: &str) -> Result<Note> {
+    /// `created_at` and `source` are facts about this birth. `update_note`
+    /// changes neither, so a note dictated at the side key still says it came
+    /// from capture after it is edited in the app.
+    pub fn create_note(&self, id: &str, body: &str, source: &str) -> Result<Option<Note>> {
         let now = now_ms();
-        self.conn.execute(
+        let inserted = self.conn.execute(
             "INSERT INTO notes (id, body, created_at, updated_at, source)
              VALUES (?1, ?2, ?3, ?3, ?4)
-             ON CONFLICT(id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at",
+             ON CONFLICT(id) DO NOTHING",
             rusqlite::params![id, body, now, source],
         )?;
-        // The row is there: the statement above either inserted or updated it,
-        // and nothing between the two statements can delete it that would not
-        // equally have raced a caller reading its own write.
-        self.get_note(id)?.ok_or_else(|| {
-            StoreError::Query(rusqlite::Error::QueryReturnedNoRows)
-        })
+        if inserted == 0 { return Ok(None); }
+        self.get_note(id)
+    }
+
+    /// Updates exactly the revision an existing writer read. Missing and
+    /// changed rows both answer `None`; neither case inserts. In particular,
+    /// a queued autosave that wakes after Delete cannot resurrect the note.
+    pub fn update_note(&self, id: &str, body: &str, expected_revision: i64) -> Result<Option<Note>> {
+        let changed = self.conn.execute(
+            "UPDATE notes SET body = ?2, updated_at = ?3, revision = revision + 1
+             WHERE id = ?1 AND revision = ?4",
+            rusqlite::params![id, body, now_ms(), expected_revision],
+        )?;
+        if changed == 0 { return Ok(None); }
+        self.get_note(id)
+    }
+
+    /// Fixture convenience; absent from production so app code cannot upsert.
+    #[cfg(test)]
+    pub(crate) fn save_note(&self, id: &str, body: &str, source: &str) -> Result<Note> {
+        if let Some(current) = self.get_note(id)? {
+            return self.update_note(id, body, current.revision)?
+                .ok_or_else(|| StoreError::Query(rusqlite::Error::QueryReturnedNoRows));
+        }
+        self.create_note(id, body, source)?
+            .ok_or_else(|| StoreError::Query(rusqlite::Error::QueryReturnedNoRows))
+    }
+
+    /// Applies a confirmed command and records enough to undo it after a
+    /// restart. The note write and undo record commit together.
+    pub fn apply_command(&self, change: &CommandMutation) -> Result<CommandMutationResult> {
+        let tx = self.conn.unchecked_transaction()?;
+        let current = {
+            let sql = format!("SELECT {NOTE_COLUMNS} FROM notes WHERE id = ?1");
+            tx.query_row(&sql, [&change.note_id], row_to_note).optional()?
+        };
+        let matches = match (&current, change.before_revision) {
+            (None, None) => true,
+            (Some(note), Some(expected)) => note.revision == expected && change.before_body.as_deref() == Some(note.body.as_str()),
+            _ => false,
+        };
+        if !matches {
+            return Ok(CommandMutationResult::Conflict { current });
+        }
+
+        let now = now_ms();
+        let after_revision = change.before_revision.unwrap_or(0) + 1;
+        match &current {
+            Some(_) => {
+                let changed = tx.execute(
+                    "UPDATE notes SET body = ?2, updated_at = ?3, revision = ?4 WHERE id = ?1 AND revision = ?5",
+                    rusqlite::params![change.note_id, change.after_body, now, after_revision, change.before_revision],
+                )?;
+                if changed != 1 {
+                    return Ok(CommandMutationResult::Conflict { current: self.get_note(&change.note_id)? });
+                }
+            }
+            None => {
+                tx.execute(
+                    "INSERT INTO notes (id, body, created_at, updated_at, source, revision) VALUES (?1, ?2, ?3, ?3, ?4, ?5)",
+                    rusqlite::params![change.note_id, change.after_body, now, change.source, after_revision],
+                )?;
+            }
+        }
+        tx.execute(
+            "INSERT INTO command_mutations
+             (id, note_id, kind, before_body, after_body, before_revision, after_revision, created_at, undone_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL)",
+            rusqlite::params![
+                change.id,
+                change.note_id,
+                change.kind,
+                change.before_body,
+                change.after_body,
+                change.before_revision,
+                after_revision,
+                now
+            ],
+        )?;
+        tx.commit()?;
+        let note = self.get_note(&change.note_id)?.ok_or_else(|| StoreError::Query(rusqlite::Error::QueryReturnedNoRows))?;
+        Ok(CommandMutationResult::Applied { mutation_id: change.id.clone(), note })
+    }
+
+    /// Reverses a command only while its exact result is still current. A
+    /// later editor save or command turns Undo into a conflict, never data loss.
+    pub fn undo_command(&self, mutation_id: &str) -> Result<CommandUndoResult> {
+        let tx = self.conn.unchecked_transaction()?;
+        let record = tx
+            .query_row(
+                "SELECT note_id, before_body, after_body, before_revision, after_revision, undone_at
+                 FROM command_mutations WHERE id = ?1",
+                [mutation_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<i64>>(3)?,
+                        row.get::<_, i64>(4)?,
+                        row.get::<_, Option<i64>>(5)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((note_id, before_body, after_body, before_revision, after_revision, undone_at)) = record else {
+            return Ok(CommandUndoResult::NotFound);
+        };
+        if undone_at.is_some() {
+            return Ok(CommandUndoResult::AlreadyUndone);
+        }
+        let current = {
+            let sql = format!("SELECT {NOTE_COLUMNS} FROM notes WHERE id = ?1");
+            tx.query_row(&sql, [&note_id], row_to_note).optional()?
+        };
+        let unchanged = current
+            .as_ref()
+            .is_some_and(|note| note.revision == after_revision && note.body == after_body);
+        if !unchanged {
+            return Ok(CommandUndoResult::Conflict { current });
+        }
+
+        let note = if let (Some(body), Some(_revision)) = (before_body, before_revision) {
+            tx.execute(
+                "UPDATE notes SET body = ?2, updated_at = ?3, revision = ?4 WHERE id = ?1 AND revision = ?5",
+                rusqlite::params![note_id, body, now_ms(), after_revision + 1, after_revision],
+            )?;
+            let sql = format!("SELECT {NOTE_COLUMNS} FROM notes WHERE id = ?1");
+            Some(tx.query_row(&sql, [&note_id], row_to_note)?)
+        } else {
+            tx.execute("DELETE FROM notes WHERE id = ?1 AND revision = ?2", rusqlite::params![note_id, after_revision])?;
+            None
+        };
+        tx.execute("UPDATE command_mutations SET undone_at = ?2 WHERE id = ?1", rusqlite::params![mutation_id, now_ms()])?;
+        tx.commit()?;
+        Ok(CommandUndoResult::Undone { mutation_id: mutation_id.to_string(), note })
+    }
+
+    /// The newest recent command whose exact result is still current. This is
+    /// how an Undo interrupted by a process restart is offered again.
+    pub fn latest_command_undo(&self, max_age_ms: i64) -> Result<Option<PendingCommandUndo>> {
+        let cutoff = now_ms().saturating_sub(max_age_ms.max(0));
+        self.conn
+            .query_row(
+                "SELECT m.id, m.note_id, m.kind, m.created_at
+                 FROM command_mutations m
+                 JOIN notes n ON n.id = m.note_id
+                 WHERE m.undone_at IS NULL AND m.created_at >= ?1
+                   AND n.revision = m.after_revision AND n.body = m.after_body
+                 ORDER BY m.created_at DESC, m.id DESC LIMIT 1",
+                [cutoff],
+                |row| {
+                    Ok(PendingCommandUndo {
+                        mutation_id: row.get(0)?,
+                        note_id: row.get(1)?,
+                        kind: row.get(2)?,
+                        created_at: row.get(3)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(StoreError::Query)
     }
 
     /// Removes a note, answering whether a row actually went.
@@ -561,25 +780,26 @@ impl Store {
     /// developer settings; nothing else calls it. The schema stays, so the
     /// next save is an ordinary insert into an empty table.
     pub fn clear(&self) -> Result<()> {
-        self.conn.execute_batch("DELETE FROM notes; DELETE FROM captures;")?;
+        self.conn.execute_batch("DELETE FROM command_mutations; DELETE FROM notes; DELETE FROM captures;")?;
         Ok(())
     }
 
     /// A transcript becomes a note. THIS IS WHAT THE ANDROID CAPTURE SERVICE
     /// CALLS.
     ///
-    /// It is a thin thing on purpose - an id and a `save_note` - but it is the
+    /// It is a thin thing on purpose - an id and a `create_note` - but it is the
     /// named entry point rather than an instruction to the JNI layer to mint a
-    /// uuid and call `save_note` itself, because the JNI layer is the one
+    /// uuid and call `create_note` itself, because the JNI layer is the one
     /// caller that cannot be unit tested from here and is the one running in a
     /// process with no app around it. Everything it needs to get right lives
     /// on this side of the boundary, where the tests are.
     ///
-    /// `source` is the caller's to choose and survives every later edit (see
-    /// `save_note`), which is what lets a note say it came from the side key
+    /// `source` is the caller's to choose and survives every later edit, which
+    /// is what lets a note say it came from the side key
     /// rather than from a Quick Settings tile long after both are forgotten.
     pub fn append_capture(&self, body: &str, source: &str) -> Result<Note> {
-        self.save_note(&new_id(), body, source)
+        self.create_note(&new_id(), body, source)?
+            .ok_or_else(|| StoreError::Query(rusqlite::Error::QueryReturnedNoRows))
     }
 }
 
@@ -650,6 +870,19 @@ mod tests {
         db.store.delete_note("n1").unwrap();
         assert!(!db.store.image_in_use("a_1.jpg").unwrap());
         assert!(db.store.image_in_use("b.jpg").unwrap());
+    }
+
+    #[test]
+    fn a_stale_existing_note_write_cannot_resurrect_a_deleted_note() {
+        let db = TempDb::new();
+        let original = db.store.create_note("deleted", "Brofries", "capture").unwrap().unwrap();
+        assert_eq!(db.store.create_note(&original.id, "replacement", "editor").unwrap(), None);
+        assert!(db.store.delete_note(&original.id).unwrap());
+        assert_eq!(
+            db.store.update_note(&original.id, "Brofries\n\nold and new speech", original.revision).unwrap(),
+            None
+        );
+        assert_eq!(db.store.get_note(&original.id).unwrap(), None);
     }
 
     #[test]
@@ -816,6 +1049,81 @@ mod tests {
             "an edit has to move updated_at or the list stops re-sorting"
         );
         assert_eq!(db.store.list_notes().unwrap().len(), 1);
+        assert_eq!(second.revision, first.revision + 1);
+    }
+
+    fn command(id: &str, note: &Note, after: &str) -> CommandMutation {
+        CommandMutation {
+            id: id.into(),
+            note_id: note.id.clone(),
+            kind: "append".into(),
+            before_revision: Some(note.revision),
+            before_body: Some(note.body.clone()),
+            after_body: after.into(),
+            source: note.source.clone(),
+        }
+    }
+
+    #[test]
+    fn a_command_compares_the_revision_and_never_overwrites_a_stale_edit() {
+        let db = TempDb::new();
+        let shown = db.store.save_note("n1", "# Bugs\n\n- One", "editor").unwrap();
+        let edited = db.store.save_note("n1", "# Bugs\n\n- One\n- Typed elsewhere", "editor").unwrap();
+        let result = db.store.apply_command(&command("c1", &shown, "# Bugs\n\n- One\n- Voice")).unwrap();
+        assert_eq!(result, CommandMutationResult::Conflict { current: Some(edited.clone()) });
+        assert_eq!(db.store.get_note("n1").unwrap(), Some(edited));
+    }
+
+    #[test]
+    fn an_applied_command_can_be_undone_after_reopening_the_store() {
+        let path = std::env::temp_dir().join(format!("glyph-command-test-{}.sqlite", new_id()));
+        let store = Store::open(&path).unwrap();
+        let before = store.save_note("n1", "# Bugs\n\n- One", "editor").unwrap();
+        let applied = store.apply_command(&command("c1", &before, "# Bugs\n\n- One\n- Voice")).unwrap();
+        let CommandMutationResult::Applied { note, .. } = applied else { panic!("command was not applied") };
+        assert_eq!(note.body, "# Bugs\n\n- One\n- Voice");
+        drop(store);
+
+        let reopened = Store::open(&path).unwrap();
+        let undone = reopened.undo_command("c1").unwrap();
+        assert!(matches!(undone, CommandUndoResult::Undone { note: Some(ref note), .. } if note.body == before.body));
+        assert_eq!(reopened.undo_command("c1").unwrap(), CommandUndoResult::AlreadyUndone);
+        drop(reopened);
+        for suffix in ["", "-wal", "-shm"] {
+            let mut name = path.clone().into_os_string();
+            name.push(suffix);
+            let _ = std::fs::remove_file(std::path::PathBuf::from(name));
+        }
+    }
+
+    #[test]
+    fn undo_refuses_to_replace_a_later_edit_and_create_undo_removes_only_unchanged_note() {
+        let db = TempDb::new();
+        let before = db.store.save_note("n1", "one", "editor").unwrap();
+        let CommandMutationResult::Applied { note: applied, .. } = db.store.apply_command(&command("c1", &before, "two")).unwrap() else {
+            panic!("command was not applied")
+        };
+        let later = db.store.save_note("n1", "three", "editor").unwrap();
+        assert_eq!(db.store.undo_command("c1").unwrap(), CommandUndoResult::Conflict { current: Some(later.clone()) });
+        assert_eq!(later.revision, applied.revision + 1);
+
+        let create = CommandMutation {
+            id: "c2".into(), note_id: "new".into(), kind: "create".into(), before_revision: None,
+            before_body: None, after_body: "Apartment stuff".into(), source: "capture".into(),
+        };
+        assert!(matches!(db.store.apply_command(&create).unwrap(), CommandMutationResult::Applied { .. }));
+        assert!(matches!(db.store.undo_command("c2").unwrap(), CommandUndoResult::Undone { note: None, .. }));
+        assert_eq!(db.store.get_note("new").unwrap(), None);
+    }
+
+    #[test]
+    fn a_recent_unchanged_command_is_recoverable_after_an_interruption() {
+        let db = TempDb::new();
+        let before = db.store.save_note("n1", "one", "editor").unwrap();
+        db.store.apply_command(&command("recover", &before, "two")).unwrap();
+        assert_eq!(db.store.latest_command_undo(60_000).unwrap().unwrap().mutation_id, "recover");
+        db.store.save_note("n1", "later", "editor").unwrap();
+        assert_eq!(db.store.latest_command_undo(60_000).unwrap(), None);
     }
 
     #[test]
@@ -870,7 +1178,7 @@ mod tests {
         assert_eq!(db.store.list_notes().unwrap().len(), 2);
         assert_eq!(db.store.get_note(&one.id).unwrap(), Some(one.clone()));
 
-        // The provenance survives the editor. If save_note ever starts writing
+        // The provenance survives the editor. If the fixture save ever starts writing
         // `source` on a conflict, this is the line that goes red.
         tick();
         let edited = db.store.save_note(&one.id, "milk, bread, kettle", "editor").unwrap();

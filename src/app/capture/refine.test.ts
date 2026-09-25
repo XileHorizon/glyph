@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { refinedBody, refinedSegments, type RefineJob, withoutCommands } from './refine.ts';
+import { refinedBody, refinedSegments, type RefineJob, withClips, withoutCommands } from './refine.ts';
 
 const job = (over: Partial<RefineJob> = {}): RefineJob => ({
   id: 'n1',
@@ -45,14 +45,32 @@ describe('the better words after a recording', () => {
 
 describe('the better words leave commands out', () => {
   const seg = (text: string, startMs: number, endMs: number) => ({ text, startMs, endMs });
-  it('drops phrases inside a command’s stretch and cuts a phrase at “Glyph”', () => {
-    const refined = [seg('Pick up the parcel.', 0, 1800), seg('Pick up milk, Glyph, add eggs to', 2000, 4000), seg('work.', 4000, 4800), seg('Yes.', 5200, 5600), seg('Call Sam.', 6000, 7000)];
+  it('drops phrases inside a command’s stretch and cuts a phrase at “hey Ghost”', () => {
+    const refined = [seg('Pick up the parcel.', 0, 1800), seg('Pick up milk, hey Ghost, add eggs to', 2000, 4000), seg('work.', 4000, 4800), seg('Yes.', 5200, 5600), seg('Call Sam.', 6000, 7000)];
     const kept = withoutCommands({ skip: [{ startMs: 3950, endMs: 4900 }, { startMs: 5100, endMs: 5700 }], keywordAt: [{ startMs: 2100, endMs: 3900 }] }, refined);
     expect(kept.map((s) => s.text)).toEqual(['Pick up the parcel.', 'Pick up milk', 'Call Sam.']);
   });
 
   it('keeps everything for a job from before commands were kept out', () => {
-    const refined = [seg('Glyph is the app.', 0, 1000)];
+    const refined = [seg('Ghost is the app.', 0, 1000)];
     expect(withoutCommands({}, refined)).toEqual(refined);
+  });
+});
+
+describe('voice memos in the better words', () => {
+  const clip = { text: '![voice 0:05](tape:12000-17000)', startMs: 12_000, endMs: 17_000 };
+  const refined = [
+    { text: 'Before the memo.', startMs: 8_000, endMs: 11_000 },
+    { text: 'After it.', startMs: 18_000, endMs: 20_000 },
+  ];
+
+  it('puts each memo back where it was spoken', () => {
+    const job = { clips: [clip] };
+    expect(withClips(job, refined).map((s) => s.text)).toEqual(['Before the memo.', '![voice 0:05](tape:12000-17000)', 'After it.']);
+  });
+
+  it('leaves a take with no memo exactly as it was', () => {
+    expect(withClips({}, refined)).toEqual(refined);
+    expect(withClips({ clips: [] }, refined)).toEqual(refined);
   });
 });

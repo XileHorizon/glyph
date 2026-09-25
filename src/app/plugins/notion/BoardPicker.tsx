@@ -38,7 +38,7 @@ export function BoardPicker({ noteId, onDone }: { noteId: string; onDone: () => 
       <>
         <SheetTitle>Sign in to Notion</SheetTitle>
         {problem ? <SheetNote>{problem}</SheetNote> : null}
-        <SheetNote>Notion opens in your browser and asks which boards Glyph may use. Pick them, then come back here.</SheetNote>
+        <SheetNote>Notion opens in your browser and asks which boards Ghost.md may use. Pick them, then come back here.</SheetNote>
         <SheetGroup>
           <SheetRow
             icon={NotionMark}
@@ -53,7 +53,7 @@ export function BoardPicker({ noteId, onDone }: { noteId: string; onDone: () => 
   return (
     <>
       <SheetTitle>Where tasks go</SheetTitle>
-      <SheetNote>{`Boards in ${account.workspaceName || 'Notion'} that Glyph can see.`}</SheetNote>
+      <SheetNote>{`Boards in ${account.workspaceName || 'Notion'} that Ghost.md can see.`}</SheetNote>
       {trouble ? <SheetNote>{trouble}</SheetNote> : null}
       <SheetGroup>
         {boards === null ? (

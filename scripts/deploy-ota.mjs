@@ -9,6 +9,8 @@
  *                      whole editor, minus what needs a Rust core (no haptics,
  *                      notes in localStorage rather than SQLite).
  *   /glyph/ota.json    the manifest an installed Glyph checks (src-tauri/src/ota.rs),
+ *                      whose version carries this release's number: 1.4.3-12 is the
+ *                      twelfth update published on 1.4.3, counted from what is live.
  *   /glyph/ota.json.sig  and its Ed25519 signature (scripts/ota-sign.mjs).
  *                      It describes THIS web build: the app downloads the files
  *                      it lists from /glyph/assets/, verifies each SHA-256, and
@@ -17,6 +19,16 @@
  *   /glyph/glyph.apk   the installable app, for first installs and for changes
  *   /glyph/apk.json    to the native layer. apk.json is what makes an installed
  *   /glyph/apk.json.sig  Glyph offer "Install" when this APK is newer than it.
+ *   /glyph/glyph.dmg   the Mac app (with --desktop): universal, signed with the
+ *   /glyph/desktop.json  Developer ID, not yet notarised. desktop.json says what
+ *                      it is (version, size, SHA-256, the lowest macOS it runs on)
+ *                      and is what install.html reads to offer it; it lands after
+ *                      glyph.dmg, by rename, like the other manifests. Unsigned for
+ *                      now, because no app reads it - sign it (a CONTEXT in
+ *                      ota-sign.mjs) the day the Mac app offers its own updates.
+ *   /glyph/changelog.json  every release published here, newest first: version, build,
+ *                      when, the notes it carried, and the APK that went with it. Written
+ *                      from the live one each deploy, and read by Settings' What's new.
  *   /glyph/install.html  a page to open on the phone: version, size, the link.
  *   /glyph/models/     the Whisper weights, ~250 MB, uploaded once from a
  *                      verified `models/` (scripts/fetch-model.mjs). Never
@@ -46,10 +58,14 @@
  * Usage:
  *   node scripts/deploy-ota.mjs                  # web + OTA update, the quick loop
  *   node scripts/deploy-ota.mjs --apk            # also build and publish the APK
+ *   node scripts/deploy-ota.mjs --desktop        # also build and publish the Mac app (on a Mac, with the Developer ID)
+ *   node scripts/deploy-ota.mjs --mcp            # also build and publish Claude's MCP server, /glyph/mcp/glyph-mcp.mjs (docs/MCP.md)
  *   node scripts/deploy-ota.mjs --apk --same-version
+ *   node scripts/deploy-ota.mjs --skip-tests     # ship without running the tests first (not recommended)
  *   node scripts/deploy-ota.mjs --apk --keep-connection && npm run deploy:server   # one login for both
  *                                                # republish an APK whose version is not newer
  *   node scripts/deploy-ota.mjs --public         # build without the formatting token (a public release)
+ *   node scripts/deploy-ota.mjs --release 13     # number this release by hand, after a rollback put an older manifest back
  *   node scripts/deploy-ota.mjs --notes "Faster voice notes."
  *                                                # what changed: the text of the update alert people opt into
  *
@@ -67,7 +83,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -94,13 +110,35 @@ const APK = join(APK_DIR, 'universal/release/app-universal-release.apk');
 const APK_META = join(APK_DIR, 'universal/release/output-metadata.json');
 const SIGNER_PIN = join(ROOT, 'src-tauri/apk-signer.sha256');
 const BUILD_TOOLS = join(process.env.ANDROID_HOME ?? join(process.env.HOME, 'Library/Android/sdk'), 'build-tools/35.0.0');
+// The Mac app: one universal build (Apple silicon and Intel in one file), so the download page needs no question.
+const MAC_TARGET = 'universal-apple-darwin';
+const MAC_BUNDLE = join(ROOT, 'src-tauri/target', MAC_TARGET, 'release/bundle');
+/*
+ * Who may sign it. The team is pinned the way the APK's signer is (apk-signer.sha256): an app signed by anyone else
+ * is refused before it goes out, checked on the built file rather than trusted from the build. The identity is the
+ * certificate's name in this Mac's keychain; $GLYPH_MAC_IDENTITY overrides it on another machine.
+ */
+const MAC_TEAM = 'F6ZAL7ANAD';
+const MAC_IDENTITY = process.env.GLYPH_MAC_IDENTITY ?? `Developer ID Application: Matt Wisniewski (${MAC_TEAM})`;
 
 const withApk = process.argv.includes('--apk');
+const withDesktop = process.argv.includes('--desktop');
+/** Claude's MCP server as one file (scripts/build-mcp.mjs), published at /glyph/mcp/glyph-mcp.mjs beside the app. */
+const withMcp = process.argv.includes('--mcp');
+const MCP_FILE = join(ROOT, 'mcp/dist/glyph-mcp.mjs');
 const sameVersion = process.argv.includes('--same-version');
 const isPublic = process.argv.includes('--public');
 // Leave the connection open (it closes itself two minutes after its last use)
 // so a server deploy straight after this one spends no second login.
 const keepConnection = process.argv.includes('--keep-connection');
+// Ship without running the tests first: only for a release that cannot wait. The
+// Test results page in that build then says its report is from other code.
+const skipTests = process.argv.includes('--skip-tests');
+// The release number by hand, for the one case the live manifest cannot answer: after a rollback it is an older
+// manifest, so the next release must go past the HIGHEST ever published, not past what is live.
+const releaseFlag = process.argv.indexOf('--release');
+const askedRelease = releaseFlag >= 0 ? Number(process.argv[releaseFlag + 1]) : null;
+if (releaseFlag >= 0 && (!Number.isInteger(askedRelease) || askedRelease < 1)) fail('--release needs a whole number, the release this is on the current version.');
 const notesFlag = process.argv.indexOf('--notes');
 const notes = notesFlag >= 0 ? String(process.argv[notesFlag + 1] ?? '').trim() : '';
 if (notesFlag >= 0 && (!notes || notes.startsWith('--'))) fail('--notes needs the text of what changed.');
@@ -227,12 +265,66 @@ if (!sources.length || sources.some((u) => !/^https:\/\/\S+[^/]$/.test(u))) {
 }
 const services = existsSync(SERVICES_FILE) ? JSON.parse(readFileSync(SERVICES_FILE, 'utf8')) : null;
 
+// ---- tests ------------------------------------------------------------------
+
+// Every suite runs before the build, and the report it writes is compiled into
+// the page (Settings > Test results, Developer mode), stamped with the same
+// source fingerprint the build is. A failing test, or a suite that did not
+// run, stops the release here, before anything is built or signed.
+if (!skipTests) {
+  step('Running every test suite for the Test results page');
+  const tested = spawnSync('node', [join(ROOT, 'scripts/test-report.mjs')], { cwd: ROOT, stdio: 'inherit' });
+  if (tested.status !== 0) {
+    fail('A test failed or a suite did not run (the lines above say which). Fix it and release again, or pass --skip-tests to ship anyway.');
+  }
+} else {
+  console.log(c.dim('  --skip-tests: the Test results page in this build will say its report is from other code.'));
+}
+
+// ---- number this release -----------------------------------------------------
+
+/*
+ * Every bundle between two APKs used to call itself the same version, so About could not say which update was
+ * running and a phone that had taken one looked like a phone that had not (Matt: "my phone is still on 1.4.1";
+ * "every ota deploy should do a -version so like 1.4.3-12 for the 12th OTA on 1.4.3"). The count comes from what is
+ * live, not from anything kept here: the next release is one past the live manifest's, and the first on a new
+ * version is 1. The number is chosen BEFORE the build, because the version is compiled into the bundle. A manifest
+ * that cannot be read stops the deploy rather than guessing, so no two releases can claim the same number; and after
+ * a rollback, when an older manifest is live again, pass `--release <n>` past the highest ever published.
+ */
+const base = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+function nextRelease() {
+  if (askedRelease !== null) return askedRelease;
+  const answer = spawnSync('curl', ['-s', '-m', '20', '-w', '\n%{http_code}', `${URL_}ota.json`], { encoding: 'utf8' });
+  const lines = String(answer.stdout ?? '').trim().split('\n');
+  const code = lines.pop();
+  if (answer.status !== 0 || !code) fail(`Could not reach ${URL_}ota.json to number this release. Try again, or pass --release <n>.`);
+  // Nothing published there yet: this is the first.
+  if (code === '404') return 1;
+  if (code !== '200') fail(`${URL_}ota.json answered ${code}; this release cannot be numbered. Try again, or pass --release <n>.`);
+  let version;
+  try {
+    version = String(JSON.parse(lines.join('\n')).version ?? '');
+  } catch {
+    fail(`${URL_}ota.json is not readable JSON; this release cannot be numbered. Try again, or pass --release <n>.`);
+  }
+  const [, of, n] = /^(\d+\.\d+\.\d+)(?:-(\d+))?$/.exec(version) ?? [];
+  if (!of) fail(`The live manifest's version is ${JSON.stringify(version)}; this release cannot be numbered. Pass --release <n>.`);
+  if (of !== base) return 1;
+  return (Number(n) || 0) + 1;
+}
+const release = nextRelease();
+ok(`release ${base}-${release}`);
+
 // ---- build ------------------------------------------------------------------
 
 step(`Building the web app${isPublic ? c.dim(' (public: no formatting token)') : ''}`);
 // A real environment variable beats .env in Vite, so an empty one keeps the
 // token out of a public build; annotate.ts then formats locally.
-run('npm', ['run', 'build'], { cwd: ROOT, env: isPublic ? { ...process.env, VITE_GLYPH_API_TOKEN: '' } : process.env });
+run('npm', ['run', 'build'], {
+  cwd: ROOT,
+  env: { ...process.env, GLYPH_RELEASE: String(release), ...(isPublic ? { VITE_GLYPH_API_TOKEN: '' } : {}) },
+});
 
 const html = readFileSync(join(DIST, 'index.html'), 'utf8');
 // The hashed entry proves later that the box serves THIS build and not a
@@ -324,6 +416,141 @@ if (withApk) {
   ok(`APK ${apkInfo.version} (code ${apkInfo.versionCode}, native ${native}), ${(apkInfo.bytes / 1e6).toFixed(0)} MB`);
 }
 
+let desktopInfo = null;
+let desktopDmg = null;
+if (withDesktop) {
+  step('Building the Mac app');
+  if (process.platform !== 'darwin') fail('--desktop builds the Mac app, and that needs a Mac.');
+  if (process.env.GLYPH_OTA_BASE) {
+    fail('GLYPH_OTA_BASE is set: that is for test builds, and a Mac app built with it would never look at attack.fm.');
+  }
+  // The certificate is looked for before a twenty-minute build, not found missing at the end of one.
+  const identities = String(spawnSync('security', ['find-identity', '-v', '-p', 'codesigning'], { encoding: 'utf8' }).stdout ?? '');
+  if (!identities.includes(`"${MAC_IDENTITY}"`)) {
+    fail(`No signing identity "${MAC_IDENTITY}" in this Mac's keychain. Set GLYPH_MAC_IDENTITY to the Developer ID Application certificate's name.`);
+  }
+  // As with the APK, the old bundle goes first, so nothing a previous build left behind can be what is published.
+  rmSync(MAC_BUNDLE, { recursive: true, force: true });
+  // The empty beforeBuildCommand is the build-once rule in the header: the app embeds exactly the dist that goes out.
+  run('npx', ['tauri', 'build', '--bundles', 'app,dmg', '--target', MAC_TARGET, '--config', '{"build":{"beforeBuildCommand":""}}'], {
+    cwd: ROOT,
+    env: { ...process.env, APPLE_SIGNING_IDENTITY: MAC_IDENTITY },
+  });
+  const app = join(MAC_BUNDLE, 'macos/Ghost.md.app');
+  const dmgDir = join(MAC_BUNDLE, 'dmg');
+  const dmgName = existsSync(dmgDir) ? readdirSync(dmgDir).find((name) => name.endsWith('.dmg')) : undefined;
+  if (!existsSync(app) || !dmgName) fail(`The Mac build left no app or no DMG under ${MAC_BUNDLE}.`);
+  desktopDmg = join(dmgDir, dmgName);
+
+  /*
+   * What decides whether it may go out, read off the built app rather than trusted from the config - each of these
+   * has a way of failing without a word. A wrong team is an app nobody's existing install trusts. Without the hardened
+   * runtime it can never be notarised. Without the audio-input entitlement the hardened runtime closes the microphone
+   * and getUserMedia hands back silence, no prompt and no error; without NSMicrophoneUsageDescription macOS refuses
+   * the microphone outright. And one architecture short is a download that will not open on half the Macs there are.
+   */
+  const verified = spawnSync('codesign', ['--verify', '--deep', '--strict', app], { encoding: 'utf8' });
+  if (verified.status !== 0) fail(`codesign does not verify the built app:\n${verified.stderr}`);
+  const signing = String(spawnSync('codesign', ['-dv', '--verbose=2', app], { encoding: 'utf8' }).stderr ?? '');
+  const team = /TeamIdentifier=(\S+)/.exec(signing)?.[1];
+  if (team !== MAC_TEAM) fail(`The app is signed by team ${team ?? 'none'}, not the pinned ${MAC_TEAM}.`);
+  if (!/^Authority=Developer ID Application:/m.test(signing)) fail('The app is not signed with a Developer ID Application certificate.');
+  if (!/flags=\S*\(.*runtime.*\)/.test(signing)) fail('The app is not built with the hardened runtime.');
+  const entitlements = String(spawnSync('codesign', ['-d', '--entitlements', ':-', app], { encoding: 'utf8' }).stdout ?? '');
+  if (!entitlements.includes('com.apple.security.device.audio-input')) {
+    fail('The app has no microphone entitlement: under the hardened runtime recording would return silence (src-tauri/Entitlements.plist).');
+  }
+  const plist = JSON.parse(spawnSync('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')], { encoding: 'utf8' }).stdout || '{}');
+  if (!plist.NSMicrophoneUsageDescription) {
+    fail('The app has no NSMicrophoneUsageDescription: macOS would refuse it the microphone (src-tauri/Info.macos.plist).');
+  }
+  /*
+   * The lowest macOS it opens on, which the download page quotes. It is the floor of the system's own WebKit, which
+   * draws the app: the styles use color-mix() (Safari 16.2) and oklch() and :has() (15.4), and 13.1 is the first macOS
+   * whose built-in WebKit has all three. Below it the app would open and draw without its colours.
+   */
+  if (!plist.LSMinimumSystemVersion) fail('The app has no LSMinimumSystemVersion for the download page to quote (tauri.conf.json bundle.macOS).');
+  const executable = join(app, 'Contents/MacOS', String(plist.CFBundleExecutable ?? ''));
+  const archs = String(spawnSync('lipo', ['-archs', executable], { encoding: 'utf8' }).stdout ?? '').trim().split(/\s+/);
+  if (!archs.includes('arm64') || !archs.includes('x86_64')) fail(`The app is built for ${archs.join(', ') || 'nothing'}, not both Apple silicon and Intel.`);
+  ok(`Mac app signed by team ${MAC_TEAM} (Developer ID, hardened runtime), microphone allowed, ${archs.join(' + ')}, macOS ${plist.LSMinimumSystemVersion}+`);
+
+  // The build-once rule, checked rather than trusted, as it is for the APK.
+  const afterMac = JSON.parse(readFileSync(join(DIST, 'ota.json'), 'utf8'));
+  if (afterMac.build !== manifest.build) {
+    fail(`The Mac build rebuilt the web app (${manifest.build} -> ${afterMac.build}); the app and dist/ no longer match. Nothing was published.`);
+  }
+
+  const dmgBytes = readFileSync(desktopDmg);
+  desktopInfo = {
+    version: plist.CFBundleShortVersionString,
+    build: manifest.build,
+    sha256: createHash('sha256').update(dmgBytes).digest('hex'),
+    bytes: dmgBytes.length,
+    url: 'glyph.dmg',
+    arch: archs,
+    minimumSystemVersion: plist.LSMinimumSystemVersion,
+    team: MAC_TEAM,
+    // Signed but not notarised (Matt's choice for now): the first launch needs Open Anyway, which install.html explains.
+    notarized: false,
+  };
+  writeFileSync(join(DIST, 'desktop.json'), `${JSON.stringify(desktopInfo, null, 2)}\n`);
+  ok(`Mac app ${desktopInfo.version}, ${(desktopInfo.bytes / 1e6).toFixed(0)} MB`);
+}
+
+let mcpInfo = null;
+if (withMcp) {
+  step('Building the MCP server');
+  run('node', [join(ROOT, 'scripts/build-mcp.mjs')]);
+  if (!existsSync(MCP_FILE)) fail(`The MCP build left nothing at ${MCP_FILE}.`);
+  const mcpBytes = readFileSync(MCP_FILE);
+  mcpInfo = { bytes: mcpBytes.length, sha256: createHash('sha256').update(mcpBytes).digest('hex') };
+  ok(`MCP server, ${(mcpInfo.bytes / 1e6).toFixed(1)} MB`);
+}
+
+// ---- the changelog ------------------------------------------------------------
+/*
+ * Every release, newest first, carried forward from the one that is live: the history belongs to the site, so a
+ * deploy from another machine adds to the same list (Matt: "show a changelog with all updates including OTA"). Not
+ * signed, because it is words for a person to read rather than anything the app runs; the bundles it describes are
+ * signed and checked as ever.
+ */
+step('Writing the changelog');
+const KEEP_RELEASES = 60;
+const SEED = join(ROOT, 'scripts/changelog-seed.json');
+/*
+ * The live list AND the seed in the repository, merged by build: a rollback on the box puts an older changelog back,
+ * and carrying only that one forward would quietly drop the releases in between. Whichever copy has an entry, it
+ * stays; the newest wording of a build wins.
+ */
+const releaseList = (json, what) => {
+  try {
+    const list = JSON.parse(json);
+    return Array.isArray(list) ? list.filter((entry) => entry && typeof entry === 'object' && entry.build) : [];
+  } catch {
+    if (what) console.log(c.dim(`  ${what} could not be read; carrying on without it.`));
+    return [];
+  }
+};
+const before = (() => {
+  const live = releaseList(curl(['-s', '-m', '20', `${URL_}changelog.json`]));
+  const seeded = existsSync(SEED) ? releaseList(readFileSync(SEED, 'utf8'), 'the changelog seed') : [];
+  const byBuild = new Map();
+  for (const entry of [...seeded, ...live]) byBuild.set(String(entry.build), entry);
+  return [...byBuild.values()].sort((a, b) => String(b.build).localeCompare(String(a.build)));
+})();
+// Every release says something, so the page never shows a row with nothing on it.
+const entry = {
+  version: manifest.version,
+  build: manifest.build,
+  at: new Date().toISOString(),
+  notes: notes || 'Fixes and polish.',
+  ...(apkInfo ? { apk: apkInfo.version } : {}),
+};
+const history = [entry, ...before.filter((old) => old && old.build !== entry.build)].slice(0, KEEP_RELEASES);
+writeFileSync(join(DIST, 'changelog.json'), `${JSON.stringify(history, null, 2)}\n`);
+ok(`changelog: ${history.length} release${history.length === 1 ? '' : 's'}, newest ${entry.version}`);
+
 // ---- sign ---------------------------------------------------------------------
 
 step('Signing');
@@ -388,6 +615,25 @@ if (withApk) {
   );
 }
 
+if (withDesktop) {
+  // Not compressed on the way: a DMG is already compressed, and -z would only spend time.
+  step(`Uploading the Mac app ${c.dim(`(${(desktopInfo.bytes / 1e6).toFixed(0)} MB)`)}`);
+  run(
+    'sshpass',
+    ['-e', 'rsync', '--progress', '-e', RSYNC_SSH, desktopDmg, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}:${STAGE}/glyph.dmg`],
+    { env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS } },
+  );
+}
+
+if (withMcp) {
+  step('Uploading the MCP server');
+  run(
+    'sshpass',
+    ['-e', 'rsync', '-z', '-e', RSYNC_SSH, MCP_FILE, `${env.AFM_DEPLOY_USER}@${env.AFM_DEPLOY_HOST}:${STAGE}/glyph-mcp.mjs`],
+    { env: { ...process.env, SSHPASS: env.AFM_DEPLOY_PASS } },
+  );
+}
+
 step('Publishing');
 ssh(
   env,
@@ -401,9 +647,14 @@ ssh(
    # The two manifests are EXCLUDED here - excluded files are also not deleted
    # on the receiver - and placed below, last, by rename. See ORDER IS THE
    # SAFETY in the header.
+   # glyph.dmg and desktop.json the same way as the APK and its manifest: protected, so a deploy without --desktop
+   # neither deletes the Mac download nor the page's note of it, and desktop.json placed last, after the DMG.
+   # mcp/ (Claude's MCP server, docs/MCP.md) is protected the same way, and the staged file is excluded here and
+   # placed into it below by rename, so it is never half-written where a person downloads it from.
    sudo rsync -a --delete \\
-     --filter 'P /models/' --filter 'P /glyph.apk' \\
+     --filter 'P /models/' --filter 'P /glyph.apk' --filter 'P /glyph.dmg' --filter 'P /mcp/' \\
      --exclude '/ota.json' --exclude '/ota.json.sig' --exclude '/apk.json' --exclude '/apk.json.sig' \\
+     --exclude '/desktop.json' --exclude '/glyph-mcp.mjs' \\
      ${STAGE}/ ${REMOTE}/
    sudo chown -R root:root ${REMOTE}
    # Caddy runs as its own user and only needs to read.
@@ -419,6 +670,16 @@ ssh(
      sudo mv -f ${REMOTE}/.$1.new ${REMOTE}/$1
    }
    ${withApk ? 'place apk.json' : '# no --apk: the published apk.json and its signature stay as they are'}
+   # desktop.json has no signature yet (the header says why), so it is placed on its own by the same rename.
+   ${withDesktop
+     ? `sudo install -m 644 -o root -g root ${STAGE}/desktop.json ${REMOTE}/.desktop.json.new
+   sudo mv -f ${REMOTE}/.desktop.json.new ${REMOTE}/desktop.json`
+     : '# no --desktop: the published glyph.dmg and desktop.json stay as they are'}
+   ${withMcp
+     ? `sudo mkdir -p ${REMOTE}/mcp
+   sudo install -m 644 -o root -g root ${STAGE}/glyph-mcp.mjs ${REMOTE}/mcp/.glyph-mcp.mjs.new
+   sudo mv -f ${REMOTE}/mcp/.glyph-mcp.mjs.new ${REMOTE}/mcp/glyph-mcp.mjs`
+     : '# no --mcp: the published mcp/ stays as it is'}
    place ota.json
    rm -rf ${STAGE}`,
 );
@@ -476,10 +737,36 @@ if (withApk) {
   ok(`APK live: ${apkInfo.version}, ${apkInfo.bytes} bytes`);
 }
 
+if (withDesktop) {
+  let liveDesktop;
+  try {
+    liveDesktop = JSON.parse(fetchBytes(`${URL_}desktop.json`).toString());
+  } catch {
+    fail(`${URL_}desktop.json is not JSON.`);
+  }
+  if (liveDesktop.sha256 !== desktopInfo.sha256) fail('desktop.json on the box does not describe the Mac app just built.');
+  // The whole download, hashed, rather than its length: it is small enough, and it is the one file a person runs.
+  const servedDmg = fetchBytes(`${URL_}${desktopInfo.url}`);
+  const servedHash = createHash('sha256').update(servedDmg).digest('hex');
+  if (servedHash !== desktopInfo.sha256) {
+    fail(`${desktopInfo.url} is served as ${servedDmg.length} bytes hashing to ${servedHash}, not the DMG just built.`);
+  }
+  ok(`Mac app live: ${desktopInfo.version}, ${desktopInfo.bytes} bytes, SHA-256 matches`);
+}
+
+if (withMcp) {
+  const servedMcp = fetchBytes(`${URL_}mcp/glyph-mcp.mjs`);
+  const servedHash = createHash('sha256').update(servedMcp).digest('hex');
+  if (servedHash !== mcpInfo.sha256) fail(`mcp/glyph-mcp.mjs is served as ${servedMcp.length} bytes hashing to ${servedHash}, not the file just built.`);
+  ok(`MCP server live: ${mcpInfo.bytes} bytes, SHA-256 matches`);
+}
+
 ok(`Published to ${URL_} ${c.dim(`serving ${built}`)}`);
 console.log('');
 console.log(`  open on the phone   ${URL_}install.html`);
 console.log(`  install the app     ${URL_}glyph.apk`);
+if (withDesktop) console.log(`  the Mac app         ${URL_}glyph.dmg`);
+if (withMcp) console.log(`  Claude's MCP server ${URL_}mcp/glyph-mcp.mjs`);
 console.log(`  web version         ${URL_}`);
 console.log(`  OTA manifest        ${URL_}ota.json`);
 console.log('');
@@ -493,3 +780,4 @@ console.log('');
 // fixed one. (A release that cannot boot at all undoes itself - the app
 // quarantines it and falls back; see src-tauri/src/ota.rs.)
 console.log(c.dim(`  rollback: sudo rsync -a --delete --filter 'P /models/' ${REMOTE}.bak-${stamp}/ ${REMOTE}/`));
+console.log(c.dim(`  after a rollback the live manifest is older, so number the next release by hand: --release ${release + 1} or higher`));

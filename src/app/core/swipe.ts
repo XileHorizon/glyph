@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
+import { markSteppedBack } from './back.ts';
 
 /**
  * A horizontal swipe across a surface: right for back, left for forward.
@@ -64,7 +65,11 @@ export function useSwipeNav(target: RefObject<HTMLElement | null>, handlers: Swi
       const took = performance.now() - start.at;
       start = null;
       if (took > MAX_MS || Math.abs(dx) < MIN_DISTANCE || Math.abs(dx) < Math.abs(dy) * 2) return;
-      if (dx > 0) latest.current.onBack?.();
+      if (dx > 0) {
+        // Android offers the same thumb-swipe as its own back gesture a moment later: one swipe, one step (core/back.ts).
+        markSteppedBack();
+        latest.current.onBack?.();
+      }
       else latest.current.onForward?.();
     };
     const cancel = () => {

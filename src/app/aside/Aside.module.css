@@ -1,0 +1,127 @@
+/*
+ * The right-hand aside (Aside.tsx): a book's index, or the workspace's notes, in a quiet column. Its shell - a
+ * docked column or a card over the note - is the app's (app.css `.app-aside`, `.app-asideOver`); this is what is
+ * inside it.
+ */
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  block-size: 100%;
+  overflow-y: auto;
+  padding: calc(var(--app-safe-top, 0px) + var(--glacier-space-3)) var(--glacier-space-3) var(--glacier-space-6);
+  font-size: var(--glacier-font-size-sm, 0.875rem);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding: 0 var(--glacier-space-1) var(--glacier-space-2);
+  border-block-end: 1px solid var(--glacier-border-subtle);
+  margin-block-end: var(--glacier-space-2);
+}
+
+.headButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-inline-size: 0;
+  padding: 0.3em 0.4em;
+  margin-inline-start: -0.4em;
+  border: 0;
+  border-radius: var(--glacier-radius-sm, 6px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.headButton:hover {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+}
+
+.headTitle {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.close {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  margin-inline-start: auto;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.list li[data-depth='1'] .row {
+  padding-inline-start: 1.6em;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  inline-size: 100%;
+  padding: 0.45em 0.6em;
+  border: 0;
+  border-radius: var(--glacier-radius-sm, 6px);
+  background: transparent;
+  color: var(--glacier-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+}
+
+/* The open chapter: a ring, as the sidebar marks the open note. */
+.row[data-current] {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--app-ink, currentColor) 55%, transparent);
+}
+
+.number {
+  flex: none;
+  min-inline-size: 1.6em;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  color: var(--glacier-text-muted);
+}
+
+.title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title[data-untitled] {
+  color: var(--glacier-text-subtle, var(--glacier-text-muted));
+}
+
+.empty {
+  margin: var(--glacier-space-2) var(--glacier-space-1);
+  color: var(--glacier-text-muted);
+}

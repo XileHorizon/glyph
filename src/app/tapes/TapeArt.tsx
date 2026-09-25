@@ -10,6 +10,8 @@ import styles from './TapeArt.module.css';
  * `positionMs` sets how much tape is on the right reel - a note's length, or
  * where playback has got to. While `playing`, the reels turn at tape speed
  * over their own radii, straight through refs so nothing re-renders per frame.
+ * (Shells coloured from the note's id were tried and taken out the same day;
+ * Matt: "the color doesn't work well".)
  */
 
 interface TapeArtProps {

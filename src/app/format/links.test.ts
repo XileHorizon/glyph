@@ -61,3 +61,43 @@ describe('links through the model', () => {
     expect(restoreLinks('- [the board](link-1) and <link-2>', links, false)).toBe(`- [the board](${NOTION}) and https://example.com/more`);
   });
 });
+
+describe('item marks through the model', () => {
+  const URL = 'https://www.notion.so/attackfm/Buy-milk-1a2b3c4d';
+  const NOTE = `# Errands\n\n- [ ] Buy milk on the way home [notion](${URL})\n- [ ] Call the plumber\n`;
+
+  it('remembers the item a mark belongs to, and keeps a mark the model copied', () => {
+    const { text, links } = protectLinks(NOTE);
+    expect(text).toBe('# Errands\n\n- [ ] Buy milk on the way home [notion](link-1)\n- [ ] Call the plumber\n');
+    expect(links[0]).toMatchObject({ token: 'link-1', text: 'notion', item: 'Buy milk on the way home' });
+    expect(restoreLinks('# Errands\n\n- [ ] Buy milk on the way home. [notion](link-1)\n- [ ] Call the plumber.\n', links)).toBe(
+      `# Errands\n\n- [ ] Buy milk on the way home. [notion](${URL})\n- [ ] Call the plumber.\n`,
+    );
+  });
+
+  it('puts a lost mark back on the item it came from, found by its words', () => {
+    const { links } = protectLinks(NOTE);
+    const rewrite = '# Errands\n\n- [ ] Call the plumber about the tap.\n- [ ] **Buy milk** on the way home.\n';
+    expect(restoreLinks(rewrite, links)).toBe(`# Errands\n\n- [ ] Call the plumber about the tap.\n- [ ] **Buy milk** on the way home. [notion](${URL})\n`);
+  });
+
+  it('adds a lost mark at the end when no item is left that matches its words', () => {
+    const { links } = protectLinks(NOTE);
+    expect(restoreLinks('# Errands\n\n- [ ] Call the plumber.\n', links)).toBe(`# Errands\n\n- [ ] Call the plumber.\n\n[notion](${URL})\n`);
+  });
+
+  it('does not take an ordinary link at the end of an item for a mark', () => {
+    const { links } = protectLinks('- [ ] read [the board](https://www.notion.so/b)\n');
+    expect(links[0]?.item).toBeUndefined();
+  });
+});
+
+describe('a mark on an item a board names', () => {
+  it('counts as the item\u2019s mark with the anchor after it, and goes back in before the anchor when lost', () => {
+    const note = `- [ ] Buy milk [notion](${NOTION}) ^buy-milk\n`;
+    const { links } = protectLinks(note);
+    expect(links[0]?.item).toBe('Buy milk');
+    // The model dropped the mark and kept the rest: it goes back where a mark goes, before the anchor.
+    expect(restoreLinks('- [ ] Buy milk ^buy-milk\n', links, true)).toBe(`- [ ] Buy milk [notion](${NOTION}) ^buy-milk\n`);
+  });
+});

@@ -38,7 +38,9 @@
 //! builds whisper.cpp against llama-cpp-sys-2's ggml; see the whisper-rs-sys
 //! patch in Cargo.toml.
 
+pub mod command;
 pub mod device;
+pub mod hardware;
 pub mod model;
 pub mod prompt;
 

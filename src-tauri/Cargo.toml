@@ -1,6 +1,6 @@
 [package]
 name = "glyph"
-version = "1.0.7"
+version = "1.3.0"
 description = "Glyph: a mobile-first markdown notes app built on Glacier UI."
 authors = ["Matt"]
 edition = "2021"

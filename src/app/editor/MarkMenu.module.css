@@ -1,0 +1,154 @@
+/*
+ * The drawer (MarkMenu.tsx): the note settings' sheet (NoteSettings.module.css), holding the task in the note's own
+ * type and the things to do.
+ */
+
+.drawer {
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.35;
+}
+
+.head {
+  display: grid;
+  gap: var(--glacier-space-2);
+  padding-block: var(--glacier-space-2) var(--glacier-space-3);
+}
+
+.eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.15em 0.7em;
+  border-radius: 999px;
+  background: var(--app-ink, var(--glacier-text));
+  color: var(--app-paper, var(--glacier-bg));
+}
+
+.stage {
+  box-sizing: border-box;
+  inline-size: 0.85em;
+  block-size: 0.85em;
+  border-radius: 50%;
+  border: 0.14em solid currentColor;
+}
+
+.status[data-stage='doing'] .stage {
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+
+.status[data-stage='done'] .stage {
+  background: currentColor;
+}
+
+.fact {
+  color: var(--app-ink-2, var(--glacier-text));
+}
+
+.title {
+  margin: 0;
+  font-size: var(--app-h3, var(--glacier-font-size-2xl));
+  font-weight: var(--glacier-font-weight-bold, 700);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: var(--app-ink, var(--glacier-text));
+  overflow-wrap: anywhere;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--glacier-space-4);
+  row-gap: 0.15em;
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.field {
+  display: contents;
+}
+
+.field dt {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.field dd {
+  margin: 0;
+  color: var(--app-ink, var(--glacier-text));
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  margin: 0;
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/* The things to do: full-width rows, a drawn icon and a word in display weight, hairlines between. */
+.options {
+  display: grid;
+  border-block-start: var(--glacier-hairline, 1px) solid var(--app-rule, var(--glacier-border-subtle));
+}
+
+.option {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-4);
+  min-block-size: 3.4rem;
+  padding: 0;
+  border: none;
+  border-block-end: var(--glacier-hairline, 1px) solid var(--app-rule, var(--glacier-border-subtle));
+  background: none;
+  font: inherit;
+  text-align: start;
+  color: var(--app-ink, var(--glacier-text));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.option:last-child {
+  border-block-end: none;
+}
+
+.option:active {
+  background: color-mix(in srgb, var(--app-ink, #000) 6%, transparent);
+}
+
+.option:disabled {
+  cursor: default;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.option[data-quiet] {
+  color: var(--app-ink-2, var(--glacier-text));
+}
+
+/* An 18 px drawing in a 30 px ring: it looks the size of the note header's icons, whose rings are bigger and dimmer (Matt: "make the icons on the notion drawer smaller to match"). */
+.icon {
+  display: grid;
+  place-items: center;
+  inline-size: 1.875rem;
+  block-size: 1.875rem;
+  border-radius: 50%;
+  background: var(--app-paper, var(--glacier-bg));
+  border: 1.5px solid var(--app-ink, var(--glacier-text));
+}
+
+.label {
+  font-size: var(--glacier-font-size-xl, 1.25rem);
+  font-weight: var(--glacier-font-weight-semibold, 600);
+  letter-spacing: -0.01em;
+}

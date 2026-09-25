@@ -21,7 +21,7 @@ const RESET_GENERATION = 11;
  * their manifests (plugins/registry.ts), switched on or not; `glyph-projects`
  * is what the 0.4.x projects feature left behind.
  */
-const KEYS = ['glyph-preferences', 'glyph-guide-seen', 'glyph-refine-queue', 'glyph-last-capture', 'glyph-haptics', 'glyph-notes', 'glyph-side-key', 'glyph-format-queue', 'glyph-ai-results', 'glyph-projects'];
+const KEYS = ['glyph-preferences', 'glyph-guide-seen', 'glyph-refine-queue', 'glyph-last-capture', 'glyph-haptics', 'glyph-notes', 'glyph-side-key', 'glyph-format-queue', 'glyph-ai-results', 'glyph-projects', 'glyph-workspaces', 'glyph-guide-started', 'glyph-guide-page', 'glyph-sample-note'];
 
 export async function resetLocalData({ models }: { models: boolean }): Promise<void> {
   if (isTauri()) {
@@ -29,7 +29,7 @@ export async function resetLocalData({ models }: { models: boolean }): Promise<v
       (status) => status.nativeGeneration ?? 0,
       () => 0,
     );
-    if (generation < RESET_GENERATION) throw new Error('Resetting needs the newest Glyph. Install it from Settings > Updates.');
+    if (generation < RESET_GENERATION) throw new Error('Resetting needs the newest Ghost.md. Install it from Settings > Updates.');
     await invoke<void>('reset_local_data', { models });
   } else {
     await new Promise<void>((resolve) => {

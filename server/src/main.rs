@@ -10,6 +10,8 @@
 //!   POST /glyph/api/format   { "text" }  ->  annotations, model, elapsedMs
 //!   GET  /glyph/api/health                ->  { ok, model, ollama }
 //!   /glyph/api/notion/*                    ->  Notion sign-in, see `notion.rs`
+//!   /glyph/api/v1/*                        ->  accounts and end-to-end encrypted sync, see `accounts.rs`, `sync.rs`
+//!   /glyph/api/v1/live                     ->  live sync's relay, a WebSocket passing sealed edits, see `live.rs`
 //!
 //! This file owns the wire: routes, CORS, the order the guards run in, and
 //! what each failure looks like to the phone. `model.rs` owns the Ollama call,
@@ -25,11 +27,24 @@
 //! it. Caddy routes `/glyph/api/*` here; the prefix is not stripped, so the
 //! routes carry it.
 
+mod accounts;
 mod bench;
 mod guard;
+mod identity;
 mod model;
 mod notion;
 mod shape;
+mod store;
+mod live;
+mod mcp_proxy;
+mod shares;
+mod sync;
+#[cfg(test)]
+mod sync_tests;
+#[cfg(test)]
+mod shares_tests;
+#[cfg(test)]
+mod live_tests;
 
 use axum::body::{to_bytes, Body};
 use axum::extract::{ConnectInfo, State};
@@ -94,12 +109,22 @@ const BREAKER_COOLDOWN: Duration = Duration::from_secs(600);
 /// iOS and macOS use `tauri://localhost`. The last is the Vite dev server
 /// (`vite.config.ts`, port 5250). The web build at attack.fm/glyph/ is
 /// same-origin and needs no entry.
-const ORIGINS: &[&str] = &[
-    "http://tauri.localhost",
-    "https://tauri.localhost",
-    "tauri://localhost",
-    "http://localhost:5250",
-];
+const ORIGINS: &[&str] = &["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"];
+
+/// Whether a page may call this service from the browser: one of `ORIGINS`,
+/// or a dev server on this machine at any port (`http://localhost:5255`,
+/// `http://127.0.0.1:5251`), since several run side by side and each takes the
+/// next free port. A dev page is the person's own; the token it would need
+/// lives in its own storage, not in the origin.
+fn allowed_origin(origin: &[u8]) -> bool {
+    let Ok(origin) = std::str::from_utf8(origin) else { return false };
+    if ORIGINS.contains(&origin) {
+        return true;
+    }
+    ["http://localhost:", "http://127.0.0.1:"].iter().any(|host| {
+        origin.strip_prefix(host).is_some_and(|port| (1..=5).contains(&port.len()) && port.bytes().all(|b| b.is_ascii_digit()))
+    })
+}
 
 struct App {
     token: String,
@@ -247,23 +272,38 @@ async fn method_not_allowed() -> Response {
     error(StatusCode::METHOD_NOT_ALLOWED, "method not allowed")
 }
 
-fn router(app: Arc<App>) -> Router {
+fn router(app: Arc<App>, accounts: Option<Arc<accounts::Accounts>>) -> Router {
     // The layer wraps every route, so a preflight is answered before method
     // routing sees it (an OPTIONS to a POST-only route would otherwise be a
     // 405), and the 401s and 429s carry CORS headers too - without them the
     // webview hides the status and the phone cannot tell "wrong token" from
     // "network down".
     let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::list(ORIGINS.iter().map(|o| HeaderValue::from_static(o))))
-        .allow_methods([Method::GET, Method::POST])
+        .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| allowed_origin(origin.as_bytes())))
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+        // A recording's revision rides in a header, and a page cannot read one it was not told it may.
+        .expose_headers([header::HeaderName::from_static("x-glyph-rev")])
         .max_age(Duration::from_secs(600));
     let notion = notion::Notion::from_env();
-    Router::new()
+    let mut routes = Router::new()
         .route("/glyph/api/health", get(health))
         .route("/glyph/api/format", post(format))
         .with_state(app)
-        .merge(notion::router(notion))
+        .merge(notion::router(notion));
+    // Accounts and sync, when the service has somewhere to keep them.
+    if let Some(accounts) = accounts {
+        routes = routes
+            .merge(accounts::router(accounts.clone()))
+            .merge(sync::router(accounts.clone()))
+            // Notes and books shared by their links (docs/SHARING.md): the same accounts own them.
+            .merge(shares::router(accounts.clone()))
+            // Live sync's relay (docs/LIVE.md): the same accounts, a socket instead of requests.
+            .merge(live::router(accounts));
+    }
+    // Claude's hosted MCP server (mcp/hosted.ts, docs/MCP.md), running beside this service, reached through it.
+    routes = routes.merge(mcp_proxy::router(mcp_proxy::Upstream::from_env()));
+    routes
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
         .layer(cors)
@@ -324,6 +364,20 @@ async fn main() {
     let base = std::env::var("OLLAMA_URL").unwrap_or_else(|_| DEFAULT_OLLAMA.into());
 
     let app = app_with(token, model::Ollama::new(&base, &model));
+    // Where accounts and synced notes are kept (docs/SYNC.md). Unset, the service runs as it did, without them.
+    let accounts = match std::env::var("GLYPH_API_DATA").ok().filter(|d| !d.is_empty()) {
+        Some(dir) => match store::Store::open(std::path::Path::new(&dir)) {
+            Ok(store) => {
+                eprintln!("glyph-api accounts in {dir}");
+                Some(accounts::Accounts::new(Arc::new(store)))
+            }
+            Err(e) => {
+                eprintln!("cannot open the accounts database in {dir}: {e}");
+                std::process::exit(1);
+            }
+        },
+        None => None,
+    };
     let listener = match tokio::net::TcpListener::bind(&bind).await {
         Ok(listener) => listener,
         Err(e) => {
@@ -332,7 +386,7 @@ async fn main() {
         }
     };
     eprintln!("glyph-api listening on {bind}, model {model} via {base}");
-    let served = axum::serve(listener, router(app).into_make_service_with_connect_info::<SocketAddr>())
+    let served = axum::serve(listener, router(app, accounts).into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown())
         .await;
     if let Err(e) = served {
@@ -353,7 +407,7 @@ mod tests {
     /// Ollama pointed at a port nothing listens on, so a test that reaches the
     /// model gets a refused connection in microseconds instead of a real call.
     fn service() -> Router {
-        router(app_with(TOKEN.into(), model::Ollama::new("http://127.0.0.1:9", "test-model")))
+        router(app_with(TOKEN.into(), model::Ollama::new("http://127.0.0.1:9", "test-model")), None)
             .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))))
     }
 
@@ -478,7 +532,7 @@ mod tests {
         use std::sync::atomic::Ordering;
         let (base, chats) = admits_then_stalls().await;
         let app = app_bounded(TOKEN.into(), model::Ollama::new(&base, "test-model"), Duration::from_millis(800), Duration::from_millis(400));
-        let service = router(app).layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+        let service = router(app, None).layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
 
         let response = service.clone().oneshot(post(r#"{"text":"call the plumber"}"#, Some(TOKEN))).await.unwrap();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -543,6 +597,24 @@ mod tests {
         let response = service().oneshot(ours).await.unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(response.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "tauri://localhost", "so the phone can READ the 401");
+    }
+
+    #[test]
+    fn any_local_dev_port_is_an_origin_and_nothing_that_only_looks_like_one() {
+        for ok in ["tauri://localhost", "http://tauri.localhost", "http://localhost:5250", "http://localhost:5255", "http://127.0.0.1:5251"] {
+            assert!(allowed_origin(ok.as_bytes()), "{ok}");
+        }
+        for no in ["https://evil.example", "http://localhost", "http://localhost:", "http://localhost:5250.evil.example", "http://localhost:123456", "http://localhost.evil.example:5250", "https://localhost:5250", "null"] {
+            assert!(!allowed_origin(no.as_bytes()), "{no}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_dev_server_on_another_port_is_granted_too() {
+        let mut request = post(r#"{"text":"hi"}"#, None);
+        request.headers_mut().insert(header::ORIGIN, HeaderValue::from_static("http://localhost:5255"));
+        let response = service().oneshot(request).await.unwrap();
+        assert_eq!(response.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "http://localhost:5255");
     }
 
     #[tokio::test]

@@ -17,6 +17,10 @@ interface ImportMeta {
 declare const __GLYPH_BUILD__: string;
 /** package.json's version at that build. */
 declare const __GLYPH_VERSION__: string;
+/** Fingerprint of the source this build was made from (scripts/testReport/source.mjs). */
+declare const __GLYPH_SOURCE__: string;
+/** A staging build: installed beside the real app under its own id, never updated over the air. */
+declare const __GLYPH_STAGING__: boolean;
 
 /**
  * The boot handshake between the inline loader in index.html and every copy of

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { preferences } from '../core/preferences.ts';
-import type { Phase } from '../core/ai.ts';
+import type { Hardware, Phase } from '../core/ai.ts';
 import type { Mode } from './modes.ts';
 import { APPLIED, cancelRun, EDITED, noteHash, passesFor, revisionPasses, runningFor, runPipeline, subscribe, type PipelineProgress } from './pipeline.ts';
 import { keepResult, keptFor } from './results.ts';
@@ -47,6 +47,7 @@ export type FormatState =
       outputTokens: number;
       tokensPerSecond: number;
       elapsedMs: number;
+      hardware: Hardware | null;
     }
   | { kind: 'done'; text: string; model: string; ms: number | null; truncated: boolean; revising: Revising | null }
   | { kind: 'stopped'; text: string }
@@ -93,11 +94,12 @@ export interface Formatter {
    */
   keep: (text: string, body: string) => void;
   /**
-   * The text has been made the note's body (the screen does that part): it
-   * is kept against the new body's hash, marked applied so nothing formats
-   * it again. Answers the undo, which keeps it as it was before.
+   * The text has been put into the note (the screen does that part: in place
+   * of the note, or above or below it), and `body` is the note now. The text
+   * is kept against that body's hash, marked applied so nothing formats it
+   * again. Answers the undo, which keeps it as it was before.
    */
-  apply: (text: string) => () => void;
+  apply: (text: string, body: string) => () => void;
   /** The model chosen in Settings, the last pass. */
   model: string;
   noteId: string;
@@ -116,6 +118,7 @@ function running(progress: PipelineProgress): FormatState {
     outputTokens: progress.outputTokens,
     tokensPerSecond: progress.tokensPerSecond,
     elapsedMs: progress.elapsedMs,
+    hardware: progress.hardware ?? null,
   };
 }
 
@@ -235,7 +238,7 @@ export function useFormatter(noteId: string, mode: Mode): Formatter {
   );
 
   const apply = useCallback(
-    (text: string) => {
+    (text: string, body: string) => {
       const before = { hash: madeFrom.current, model: keptModel.current };
       const settle = (hash: number | null, model: string | null) => {
         madeFrom.current = hash;
@@ -243,7 +246,7 @@ export function useFormatter(noteId: string, mode: Mode): Formatter {
         setState({ kind: 'done', text, model: model ?? '', ms: null, truncated: false, revising: null });
         void keepResult(noteId, mode, text, hash, model).catch((failure: unknown) => console.warn('[glyph] result not kept:', failure));
       };
-      settle(noteHash(noteId, text), APPLIED);
+      settle(noteHash(noteId, body), APPLIED);
       return () => settle(before.hash, before.model);
     },
     [noteId, mode],

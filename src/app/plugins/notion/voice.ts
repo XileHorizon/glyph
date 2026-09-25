@@ -55,7 +55,7 @@ const errorText = (failure: unknown) => (failure instanceof Error ? failure.mess
 /** Lines just put in a note's list, each made a task on that note's board and a link there. */
 async function sendLines(noteId: string, lines: string[], ctx: CaptureContext) {
   const board = boardFor(noteId);
-  if (!notionReadyNow()) return failed(ctx, 'Notion needs the newest Glyph.');
+  if (!notionReadyNow()) return failed(ctx, 'Notion needs the newest Ghost.md.');
   if (!board) return failed(ctx, 'Link that note to a Notion board first, from its cog.');
   ctx.status({ state: 'working', lead: 'Sending to', title: board.title });
   try {
@@ -78,7 +78,7 @@ async function sendWords(words: string, ctx: CaptureContext) {
   if (!words && said?.kind === 'items') return sendLines(said.noteId, said.lines, ctx);
   const text = (words || (said?.kind === 'take' ? said.text : '')).trim();
   if (!text) return failed(ctx, 'Say what to send first, then “send that to Notion”.');
-  if (!notionReadyNow()) return failed(ctx, 'Notion needs the newest Glyph.');
+  if (!notionReadyNow()) return failed(ctx, 'Notion needs the newest Ghost.md.');
   const board = boardFor(ctx.noteId());
   if (!board) return failed(ctx, 'Link this note to a Notion board first, from its cog.');
   ctx.status({ state: 'working', lead: 'Sending to', title: board.title });
@@ -95,7 +95,7 @@ async function sendWords(words: string, ctx: CaptureContext) {
 
 /** The task called `name` on any linked board, this note's first, linked at the end of the take. */
 async function linkTask(name: string, ctx: CaptureContext) {
-  if (!notionReadyNow()) return failed(ctx, 'Notion needs the newest Glyph.');
+  if (!notionReadyNow()) return failed(ctx, 'Notion needs the newest Ghost.md.');
   const own = boardFor(ctx.noteId());
   const boards = [...(own ? [own] : []), ...Object.values(boardLinks())].filter((board, i, all) => all.findIndex((b) => b.id === board.id) === i);
   if (!boards.length) return failed(ctx, 'Link a note to a Notion board first, from its cog.');

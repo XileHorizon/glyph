@@ -17,6 +17,14 @@
   min-block-size: 0;
 }
 
+/* Growing with its words (Editor's `grow`): the page around it scrolls. */
+.editor[data-grow] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  block-size: auto;
+}
+
 /* --- inline runs --------------------------------------------------------- */
 
 /*
@@ -32,6 +40,8 @@
   line-height: 1.08;
   letter-spacing: -0.035em;
   font-weight: var(--glacier-font-weight-bold);
+  /* A touch lighter than the ink of the body, so the title sits back a hair (Matt: "a very slight transparency"). */
+  color: color-mix(in srgb, var(--glacier-text) 88%, transparent);
 }
 
 .h2 {
@@ -96,6 +106,57 @@
   color: var(--glacier-accent-text);
 }
 
+/*
+ * Code inside a fenced block (glyphHighlight.ts): the block's language parses it, and these are its kinds of token,
+ * each drawn from the code theme chosen for the page's side (codeThemes.ts, codeThemes.css). Ink shows them in
+ * weight and shade; the coloured themes in colour at the reading weight.
+ */
+.codeKeyword {
+  color: var(--code-keyword);
+  font-weight: var(--code-keyword-weight);
+}
+
+.codeString {
+  color: var(--code-string);
+}
+
+.codeComment {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.codeType {
+  color: var(--code-type);
+  font-weight: var(--code-name-weight);
+}
+
+.codeProperty {
+  color: var(--code-property);
+}
+
+.codeName {
+  color: var(--code-name);
+  font-weight: var(--code-name-weight);
+}
+
+.codeLiteral {
+  color: var(--code-literal);
+  font-weight: var(--code-name-weight);
+}
+
+.codePunctuation {
+  color: var(--code-punctuation);
+}
+
+.codeMacro {
+  color: var(--code-macro);
+  font-weight: var(--code-name-weight);
+}
+
+.codeMeta {
+  color: var(--code-meta);
+}
+
 .link {
   color: var(--glacier-accent-text);
   font-weight: var(--glacier-font-weight-medium);
@@ -120,6 +181,12 @@
 
 .list {
   color: var(--glacier-text);
+  /*
+   * Every digit the same width (Matt: "make numbers on numbered list monospace so they take up the same space for all
+   * single digit characters"). Tabular figures rather than the monospace face: the marker keeps the note's own type,
+   * and 1. through 9. line up, which is what a column of them needs. The bullet marks share the rule and do not care.
+   */
+  font-variant-numeric: tabular-nums;
 }
 
 .hr {
@@ -133,6 +200,10 @@
 .taskMarker {
   color: var(--glacier-accent-text);
   font-weight: var(--glacier-font-weight-medium);
+  /* One width ticked or not: in the prose face `[x]` is wider than `[ ]`, and the words beside it jumped on a tap. */
+  font-family: var(--glacier-font-mono);
+  /* A tap on the box ticks it (editor/taskToggle.ts), so a pointer says so where there is a cursor to say it to. */
+  cursor: pointer;
 }
 
 /*
@@ -210,14 +281,44 @@
 }
 
 /*
- * The quote bar. `--glacier-shape-accent-edge` is the kit's 3px edge token.
- * The bar sits where the text's own inline padding already was, and the text
- * steps in past it, so a quote lines up with the paragraph above rather than
- * shifting sideways when the `>` is typed.
+ * SPACE AROUND A BLOCK. A quote and a block of code stand clear of the
+ * screen's edges and of the lines around them (Matt: "code blocks and >
+ * quotes are placed right up against the edges of the screen there should be
+ * some margin around them"). A line is as wide as the page, and the gutter is
+ * its padding, which moves the words in but not what is painted behind them:
+ * so the block's lines take the gutter as margin instead, and their own
+ * padding is the space inside the block.
+ *
+ * Above and below, the space is a transparent border and not a margin, with
+ * the paint clipped inside it. CodeMirror measures a line with
+ * getBoundingClientRect, which leaves a margin out, and a note whose lines are
+ * taller than it thinks puts every scroll-to-a-line out by the difference.
  */
 .editor :global(.cm-line).lineQuote {
-  border-inline-start: var(--glacier-shape-accent-edge) solid var(--glacier-border-strong);
-  padding-inline-start: calc(var(--app-gutter) - var(--glacier-shape-accent-edge));
+  margin-inline: var(--app-gutter);
+  padding-inline: calc(var(--glacier-shape-accent-edge) + 0.75em) 0;
+  /*
+   * The quote bar, `--glacier-shape-accent-edge` (the kit's 3px edge token)
+   * wide. Painted rather than a border, so the space above and below the
+   * quote can be the border, and set as an image alone so a callout's tint
+   * (editor/extended.ts) still shows behind it.
+   */
+  border-inline-start: 0;
+  background-image: linear-gradient(var(--glacier-border-strong), var(--glacier-border-strong));
+  background-size: var(--glacier-shape-accent-edge) 100%;
+  background-position: left top;
+  background-repeat: no-repeat;
+  background-clip: padding-box;
+}
+
+.editor :global(.cm-line).lineQuoteTop {
+  border-block-start: 0.35em solid transparent;
+  padding-block-start: 0.2em;
+}
+
+.editor :global(.cm-line).lineQuoteFoot {
+  border-block-end: 0.35em solid transparent;
+  padding-block-end: 0.2em;
 }
 
 /*
@@ -232,17 +333,55 @@
   text-indent: calc(-1 * var(--hang, 0px));
 }
 
+/* A list inside a quote: the quote's margin already holds the gutter, so the hang starts past the bar. */
+.editor :global(.cm-line).lineQuote.lineItem {
+  padding-inline-start: calc(var(--glacier-shape-accent-edge) + 0.75em + var(--hang, 0px));
+}
+
+/*
+ * A fenced block is one card: the paper runs behind every line of it, the
+ * first and last lines carry the corners and the block's own top and bottom
+ * padding, and the words sit in from the card's edge rather than against it
+ * (Matt: "code blocks missing border radii card shape and padding around the
+ * outside"). The card stands in from the screen by the gutter, and clear of
+ * the lines above and below by a transparent border (see SPACE AROUND A
+ * BLOCK). A code line inside a list item keeps no hang: code is not wrapped
+ * under a dash.
+ */
 .editor :global(.cm-line).lineCode {
   font-family: var(--glacier-font-mono);
   font-size: calc(var(--app-body) * 0.82);
-  background: var(--glacier-surface-sunken);
+  background: var(--code-bg);
+  background-clip: padding-box;
+  color: var(--code-fg);
   tab-size: 2;
+  margin-inline: var(--app-gutter);
+  padding-inline: 0.85em;
+  text-indent: 0;
+}
+
+/*
+ * The corners. With the paint clipped inside a transparent border, a corner's
+ * curve is the border's radius less the border: so the vertical radius is
+ * given that much more, and the corner the eye sees is a circle.
+ */
+.editor :global(.cm-line).lineCodeTop {
+  border-block-start: 0.5em solid transparent;
+  padding-block-start: 0.55em;
+  border-start-start-radius: var(--glacier-radius-lg) calc(var(--glacier-radius-lg) + 0.5em);
+  border-start-end-radius: var(--glacier-radius-lg) calc(var(--glacier-radius-lg) + 0.5em);
+}
+
+.editor :global(.cm-line).lineCodeFoot {
+  border-block-end: 0.5em solid transparent;
+  padding-block-end: 0.55em;
+  border-end-start-radius: var(--glacier-radius-lg) calc(var(--glacier-radius-lg) + 0.5em);
+  border-end-end-radius: var(--glacier-radius-lg) calc(var(--glacier-radius-lg) + 0.5em);
 }
 
 .editor :global(.cm-line).lineHr {
   color: var(--glacier-text-subtle);
 }
-
 
 /*
  * A picture under its line. A block widget sits outside `.cm-line`, so it

@@ -1,0 +1,40 @@
+# glyph-mcp: Claude's hosted MCP server for Glyph accounts (mcp/hosted.ts, docs/MCP.md), reached through glyph-api at
+# attack.fm/glyph/api/mcp.
+#
+# Installed by scripts/deploy-server.mjs beside glyph-api, which rewrites this file on every deploy - edit it here,
+# not on the box. The same shape as glyph-api.service: the same system user, loopback only, the same hardening.
+#
+# It keeps nothing on disk. A signed-in person's account key lives in this process's memory for as long as their
+# session lasts and no longer (the header of mcp/hosted.ts says how); a restart signs everyone out, and Claude asks
+# them to sign in again. So there is no state directory, and nothing here to back up.
+
+[Unit]
+Description=Glyph MCP server (Claude's access to an account's notes, over glyph-api)
+After=network-online.target glyph-api.service
+Wants=network-online.target
+
+[Service]
+Environment=GLYPH_MCP_BIND=127.0.0.1:18820
+Environment=GLYPH_MCP_ISSUER=https://attack.fm/glyph/api/mcp
+# The sync service on loopback, for this process; and as a person's browser reaches it, for the sign-in page.
+Environment=GLYPH_API=http://127.0.0.1:8796/glyph/api
+Environment=GLYPH_API_PUBLIC=https://attack.fm/glyph/api
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/glyph-api/mcp/glyph-mcp-hosted.mjs
+User=glyph
+Group=glyph
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+# A session is one account's notes, opened, in memory. A hundred people signed in with a few hundred notes each fit
+# well inside this; the ceiling is for a bug, not for the workload.
+MemoryMax=384M
+
+[Install]
+WantedBy=multi-user.target

@@ -30,7 +30,13 @@ const POSITION = /^(?:(?:column|row|cell)\s+(?:\d+|one|two|three|four|five|six|s
  * the cells.
  */
 export function cellsOf(text: string): string[] {
-  const said = text.trim().replace(/[.!?]+$/, '').trim();
+  // Whisper often writes the pauses between cells as full stops: "Item. Where. Packed."
+  const said = text
+    .trim()
+    .replace(/^[\s.,;:!?]+/, '')
+    .replace(/[.!?]+$/, '')
+    .replace(/\.\s+/g, ', ')
+    .trim();
   if (!said) return [];
   // "Bug, owner and status": the last of a comma list carries the "and".
   const parts = /[,;]/.test(said)

@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { preferences } from '../core/preferences.ts';
-import { getNote, saveNote, setNoteRecording } from '../core/store.ts';
+import { getNote, setNoteRecording, updateNote } from '../core/store.ts';
 import { invoke, isTauri } from '../core/tauri.ts';
 import { findKeyword } from './command.ts';
-import { appendBody } from './continuation.ts';
+import { appendBody } from './appendBody.ts';
 import { renderNote, type Segment } from './markdown.ts';
 
 /**
@@ -46,6 +46,11 @@ export interface RefineJob {
    * words leave them out, as the live words did. Absent on jobs from before.
    */
   skip?: Array<{ startMs: number; endMs: number }>;
+  /**
+   * The voice memos this take left (core/clips.ts), each already written as its mark, on the recording's timeline:
+   * the better words never heard them - their stretches are in `skip` - so they are put back where they were.
+   */
+  clips?: Segment[];
   /** Phrases that were words and then "Glyph": the better words keep what came before the keyword. */
   keywordAt?: Array<{ startMs: number; endMs: number }>;
   tries: number;
@@ -115,13 +120,20 @@ export function useRefining(): RefineState {
  * new phrases - the first take titled, a later one not, as the recorder did.
  */
 export function refinedBody(job: RefineJob, refined: readonly Segment[]): string {
-  const take = renderNote(withoutCommands(job, refined), '', { titled: job.titled }).markdown;
+  const take = renderNote(withClips(job, withoutCommands(job, refined)), '', { titled: job.titled }).markdown;
   return appendBody(job.baseBody, take);
+}
+
+/** The better phrases with this take's voice memos back among them, in the order they were spoken. */
+export function withClips(job: Pick<RefineJob, 'clips'>, refined: readonly Segment[]): Segment[] {
+  const clips = job.clips ?? [];
+  if (!clips.length) return [...refined];
+  return [...refined, ...clips].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
 }
 
 /** The recording's phrases with the take's replaced by the better ones. */
 export function refinedSegments(job: RefineJob, refined: readonly Segment[]): Segment[] {
-  return [...job.priorSegments.filter((s) => s.endMs <= job.fromMs), ...withoutCommands(job, refined)];
+  return [...job.priorSegments.filter((s) => s.endMs <= job.fromMs), ...withClips(job, withoutCommands(job, refined))];
 }
 
 /** How much of `segment` the spans cover, 0 to 1. */
@@ -214,6 +226,8 @@ async function ensureRefineModel(): Promise<boolean> {
   const status = await invoke<ModelStatus>('capture_refine_model_status').catch(() => null);
   if (!status) return false;
   if (status.present) return true;
+  // Local only: the better words wait until the model is on the phone.
+  if (preferences().localOnly) return false;
   const { listen } = await import('@tauri-apps/api/event');
   publish({ download: { received: 0, total: status.bytes } });
   const unlisten = await listen<{ receivedBytes: number; totalBytes: number }>('capture://refine-model-progress', (event) =>
@@ -270,11 +284,45 @@ async function apply(job: RefineJob, refined: Segment[]): Promise<void> {
   if (!refined.length) return;
   const note = await getNote(job.id);
   if (!note) return;
-  if (note.body === job.savedBody) await saveNote(job.id, refinedBody(job, refined), 'capture');
+  if (note.body === job.savedBody) await updateNote(job.id, refinedBody(job, refined), note.revision ?? 1).catch(() => null);
   await setNoteRecording(job.id, job.recordingMs, refinedSegments(job, refined)).catch(() => null);
 }
 
 function finish(job: RefineJob): void {
   writeQueue(readQueue().filter((j) => !(j.id === job.id && j.fromMs === job.fromMs)));
   syncPending();
+}
+
+// ---- listening again for a review ---------------------------------------------------------
+
+/**
+ * The review after a recording (review/) runs this take's pass itself, now,
+ * and shows its progress instead of letting the queue do it later: the
+ * careful words are what the fast ones are checked against. Answers the
+ * better phrases, commands included (the review compares like with like), or
+ * null when this phone cannot listen again: an old binary, better words
+ * switched off, or the larger model not there and not fetched.
+ */
+export async function listenAgain(job: Omit<RefineJob, 'tries'>, onPercent: (percent: number) => void): Promise<Segment[] | null> {
+  if (!(await canRefine())) return null;
+  if (!(await ensureRefineModel())) return null;
+  const { listen } = await import('@tauri-apps/api/event');
+  const unlisten = await listen<{ id: string; percent: number }>('capture://refine-progress', (event) => {
+    if (event.payload.id === job.id) onPercent(event.payload.percent);
+  });
+  try {
+    return await invoke<Segment[]>('capture_refine', { id: job.id, fromMs: job.fromMs, promptTail: job.promptTail });
+  } finally {
+    unlisten();
+  }
+}
+
+/** The recording's phrases after a review: the better ones, commands left out, for the tape's transcript. */
+export async function keepBetterPhrases(job: Omit<RefineJob, 'tries'>, refined: readonly Segment[]): Promise<void> {
+  await setNoteRecording(job.id, job.recordingMs, refinedSegments({ ...job, tries: 0 }, refined)).catch(() => null);
+}
+
+/** No queued pass runs while a review is on screen: the review's own pass and its model want the cores. */
+export function holdRefining(on: boolean): void {
+  setRecorderLive(on);
 }

@@ -36,6 +36,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 const IGNORED = [
   'node_modules/**',
   'dist/**',
+  'mcp/dist/**',
   /* Vitest's coverage output. A stray `coverage/` from an older run must not
      be able to add findings to this gate. */
   'coverage/**',
@@ -163,7 +164,7 @@ export default defineConfig([
      wanted, the switch is one key beside it and does not depend on the cwd
      `eslint` happens to run from. */
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'mcp/**/*.ts'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
     plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     languageOptions: {
@@ -203,7 +204,7 @@ export default defineConfig([
      test file, and declaring them here would only let a file lint clean and
      then die at run time with "describe is not defined". */
   {
-    files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
+    files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}', 'mcp/**/*.test.ts'],
     rules: {
       '@typescript-eslint/no-empty-function': 'off',
       'react-refresh/only-export-components': 'off',

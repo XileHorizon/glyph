@@ -221,6 +221,43 @@ fn with_causes(error: &(dyn std::error::Error + 'static)) -> String {
     message
 }
 
+/// How many times a download that keeps being cut is picked up again before the mirror is given up on. Counted
+/// from the last time bytes arrived, so a 5.7 GB model over a connection that drops every few minutes still
+/// finishes, and one that has stopped sending altogether does not retry forever.
+#[cfg(not(target_os = "ios"))]
+const RESUMES: u32 = 8;
+
+/// A mirror that does not answer at all is tried this many times before the next one.
+#[cfg(not(target_os = "ios"))]
+const FIRST_TRIES: u32 = 2;
+
+/// A little longer between each try, up to ten seconds.
+#[cfg(not(target_os = "ios"))]
+async fn pause(tries: u32) {
+    let wait = std::time::Duration::from_secs(u64::from(tries.min(5)) * 2);
+    let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(wait)).await;
+}
+
+/// Whether `response` carries the file from byte `from`: a 206 whose range starts there.
+#[cfg(not(target_os = "ios"))]
+fn resumes_at(response: &reqwest::Response, from: u64) -> bool {
+    response.status() == reqwest::StatusCode::PARTIAL_CONTENT
+        && response
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|range| range.trim().starts_with(&format!("bytes {from}-")))
+}
+
+/// One mirror's download of `spec` into `<dir>/<file>.part`, renamed into place once every byte hashes right.
+///
+/// A connection cut partway is picked up where it stopped: the next request asks for the rest with a `Range`, the
+/// bytes already written and hashed stay, and the hash carries on over the rest. Matt's Fold could not get Qwen3.5
+/// 4B: Hugging Face closed the connection somewhere in its 2.7 GB ("peer closed connection without sending TLS
+/// close_notify"), and every try started again from nothing, so a model that size had to arrive in one unbroken
+/// connection or not at all. A server that answers a `Range` with the whole file again (a 200) is started over from
+/// the first byte, so the hash is always over the file in order. An HTTP error (a 404 from a mirror without the
+/// file) is never retried: it will say the same thing again.
 #[cfg(not(target_os = "ios"))]
 async fn download(
     client: &reqwest::Client,
@@ -230,14 +267,7 @@ async fn download(
     progress: &mut impl FnMut(u64, u64),
 ) -> Result<(), String> {
     use sha2::{Digest, Sha256};
-    use std::io::Write;
-
-    let mut response = client
-        .get(url)
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| with_causes(&e))?;
+    use std::io::{Seek, SeekFrom, Write};
 
     let part = dir.join(format!("{}.part", spec.file));
     // Removes the partial file on every exit that is not the rename. A `.part`
@@ -254,28 +284,90 @@ async fn download(
     }
     let mut guard = Discard(&part, false);
 
-    let mut file = std::fs::File::create(&part)
-        .map_err(|e| format!("cannot write {}: {e}", part.display()))?;
+    let mut file: Option<std::fs::File> = None;
     let mut hash = Sha256::new();
     let mut received: u64 = 0;
     let step = (spec.bytes / 100).max(1);
     let mut next_report = 0;
+    // Tries since bytes last arrived, and whether any ever have.
+    let mut tries: u32 = 0;
+    let mut started = false;
 
-    while let Some(chunk) = response.chunk().await.map_err(|e| with_causes(&e))? {
-        received += chunk.len() as u64;
-        if received > spec.bytes {
-            return Err(format!("sent more than the expected {} bytes", spec.bytes));
+    'connection: loop {
+        let mut request = client.get(url);
+        if received > 0 {
+            request = request.header(reqwest::header::RANGE, format!("bytes={received}-"));
         }
-        hash.update(&chunk);
-        file.write_all(&chunk)
-            .map_err(|e| format!("cannot write {}: {e}", part.display()))?;
-        if received >= next_report {
-            progress(received, spec.bytes);
-            next_report = received + step;
+        let mut response = match request.send().await {
+            Ok(response) => match response.error_for_status() {
+                Ok(response) => response,
+                Err(e) => return Err(with_causes(&e)),
+            },
+            Err(e) => {
+                tries += 1;
+                if tries >= if started { RESUMES } else { FIRST_TRIES } {
+                    return Err(format!("{} (tried {tries} times)", with_causes(&e)));
+                }
+                pause(tries).await;
+                continue 'connection;
+            }
+        };
+
+        if received > 0 && !resumes_at(&response, received) {
+            // The whole file again, not the rest of it: start over, so the hash is over the bytes in order.
+            received = 0;
+            hash = Sha256::new();
+            next_report = 0;
+            if let Some(open) = file.as_mut() {
+                open.set_len(0).and_then(|()| open.seek(SeekFrom::Start(0)).map(|_| ())).map_err(|e| format!("cannot write {}: {e}", part.display()))?;
+            }
+        }
+        if file.is_none() {
+            file = Some(std::fs::File::create(&part).map_err(|e| format!("cannot write {}: {e}", part.display()))?);
+        }
+        let open = file.as_mut().expect("opened above");
+
+        loop {
+            match response.chunk().await {
+                Ok(Some(chunk)) => {
+                    started = true;
+                    tries = 0;
+                    received += chunk.len() as u64;
+                    if received > spec.bytes {
+                        return Err(format!("sent more than the expected {} bytes", spec.bytes));
+                    }
+                    hash.update(&chunk);
+                    open.write_all(&chunk).map_err(|e| format!("cannot write {}: {e}", part.display()))?;
+                    if received >= next_report {
+                        progress(received, spec.bytes);
+                        next_report = received + step;
+                    }
+                }
+                Ok(None) if received < spec.bytes => {
+                    // The body ended early without an error: the rest is asked for like any other cut.
+                    tries += 1;
+                    if tries >= RESUMES {
+                        return Err(format!("ended after {received} of {} bytes (tried {tries} times)", spec.bytes));
+                    }
+                    pause(tries).await;
+                    continue 'connection;
+                }
+                Ok(None) => break 'connection,
+                Err(e) => {
+                    tries += 1;
+                    if tries >= RESUMES {
+                        return Err(format!("{} after {received} of {} bytes (tried {tries} times)", with_causes(&e), spec.bytes));
+                    }
+                    pause(tries).await;
+                    continue 'connection;
+                }
+            }
         }
     }
-    file.sync_all().map_err(|e| format!("cannot flush {}: {e}", part.display()))?;
-    drop(file);
+
+    let open = file.take().expect("a body was read");
+    open.sync_all().map_err(|e| format!("cannot flush {}: {e}", part.display()))?;
+    drop(open);
 
     if received != spec.bytes {
         return Err(format!("ended after {received} of {} bytes", spec.bytes));
@@ -289,6 +381,84 @@ async fn download(
     guard.1 = true;
     progress(received, spec.bytes);
     Ok(())
+}
+
+/// A server that cuts its first answer partway, then serves the rest to a `Range` (or, with `ranges` off, the whole
+/// file again): the downloader must still end with every byte, hashed right.
+#[cfg(all(test, not(target_os = "ios")))]
+mod resume_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    fn serve(body: Vec<u8>, ranges: bool) -> (String, Arc<AtomicUsize>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/model.bin", listener.local_addr().unwrap());
+        let requests = Arc::new(AtomicUsize::new(0));
+        let count = Arc::clone(&requests);
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let n = count.fetch_add(1, Ordering::SeqCst);
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut from = 0usize;
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                        break;
+                    }
+                    if let Some(range) = line.to_ascii_lowercase().strip_prefix("range: bytes=") {
+                        from = range.trim().trim_end_matches('-').parse().unwrap_or(0);
+                    }
+                }
+                let resuming = ranges && from > 0;
+                let rest = if resuming { &body[from..] } else { &body[..] };
+                let head = if resuming {
+                    format!("HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {from}-{}/{}\r\nConnection: close\r\n\r\n", rest.len(), body.len() - 1, body.len())
+                } else {
+                    format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", rest.len())
+                };
+                let _ = stream.write_all(head.as_bytes());
+                // The first answer is cut a third of the way in.
+                let sent = if n == 0 { rest.len() / 3 } else { rest.len() };
+                let _ = stream.write_all(&rest[..sent]);
+                let _ = stream.flush();
+            }
+        });
+        (url, requests)
+    }
+
+    fn fetch_from(ranges: bool) -> (Result<(), String>, Vec<u8>, Vec<u8>, usize) {
+        let body: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+        let sha: String = Sha256::digest(&body).iter().map(|b| format!("{b:02x}")).collect();
+        let spec = ModelSpec { file: "model.bin", bytes: body.len() as u64, sha256: Box::leak(sha.into_boxed_str()) };
+        let dir = std::env::temp_dir().join(format!("glyph-resume-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (url, requests) = serve(body.clone(), ranges);
+        let client = reqwest::Client::builder().read_timeout(std::time::Duration::from_secs(5)).build().unwrap();
+        let result = tauri::async_runtime::block_on(async { download(&client, &url, &dir, &spec, &mut |_, _| {}).await });
+        let written = std::fs::read(dir.join("model.bin")).unwrap_or_default();
+        let _ = std::fs::remove_dir_all(&dir);
+        (result, written, body, requests.load(Ordering::SeqCst))
+    }
+
+    #[test]
+    fn a_cut_download_carries_on_from_where_it_stopped() {
+        let (result, written, body, requests) = fetch_from(true);
+        assert_eq!(result, Ok(()));
+        assert_eq!(requests, 2, "one cut, one resume");
+        assert!(written == body, "every byte, in order");
+    }
+
+    #[test]
+    fn a_server_that_ignores_the_range_is_started_over_and_still_hashes_right() {
+        let (result, written, body, _) = fetch_from(false);
+        assert_eq!(result, Ok(()));
+        assert!(written == body, "every byte, in order");
+    }
 }
 
 #[cfg(test)]

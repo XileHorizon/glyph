@@ -1,4 +1,4 @@
-# Glyph
+# Ghost.md
 
 A mobile-first markdown notes app built on [Glacier UI](https://github.com/InfamousVague/GlacierUI):
 live formatting that keeps the markdown tokens on screen, haptics as styles land,
@@ -38,7 +38,7 @@ and install the APK. After that the app keeps itself current:
   the app falls back to the frontend inside the APK in the same launch.
 - **Native changes** (Rust, Kotlin, the manifest) need `--apk` and a version bump in
   `tauri.conf.json`. Installed apps see the newer `apk.json`, download it, and hand it to
-  Android's installer; the first time, Android asks to allow installs from Glyph.
+  Android's installer; the first time, Android asks to allow installs from Ghost.md.
 - If a page change starts calling a new Rust command, bump `NATIVE_GENERATION` and
   `BUNDLE_REQUIRES` in `src-tauri/src/ota.rs` and ship with `--apk`: older apps then keep their
   current frontend and offer the APK instead of running a page they cannot support.
@@ -56,16 +56,16 @@ and DESIGN section 14. To test against a local server instead of attack.fm, buil
 
 ## Update alerts
 
-Off by default. Settings → Update alerts turns on a notification when a new Glyph is published,
+Off by default. Settings → Update alerts turns on a notification when a new Ghost.md is published,
 even with the app closed: a WorkManager job (`updates/UpdateCheckWorker.kt`) looks every ~6 hours,
 and once right away when switched on, calling into Rust over JNI (`src-tauri/src/update_alerts.rs`
 → `ota::peek`) so it trusts only signed manifests and follows a domain move. One release alerts
 once. Pass the alert text with `npm run deploy:ota -- --notes "What changed."`. On a Samsung with
-"Sleeping apps" battery limits, set Glyph's battery use to Unrestricted or the job may never run.
+"Sleeping apps" battery limits, set Ghost.md's battery use to Unrestricted or the job may never run.
 
 ## Signing keys
 
-Two keys decide whether an installed Glyph accepts anything from you. Both live outside the repo
+Two keys decide whether an installed Ghost.md accepts anything from you. Both live outside the repo
 in `~/.config/glyph/`, and **both must be backed up off this Mac** (a password manager takes
 them as file attachments):
 

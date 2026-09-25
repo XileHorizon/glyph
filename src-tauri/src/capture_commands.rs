@@ -138,7 +138,9 @@ pub struct CaptureState {
 /// process over one panic is how a bug becomes a brick.
 #[cfg(not(target_os = "ios"))]
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Hands the capture state to Tauri. Called once, from `setup`.
@@ -241,7 +243,10 @@ pub fn capture_refine_model_status(app: AppHandle) -> ModelStatus {
 /// answers with its status. Progress arrives as
 /// `capture://refine-model-progress { receivedBytes, totalBytes }`.
 #[tauri::command]
-pub async fn capture_fetch_refine_model(app: AppHandle, state: State<'_, CaptureState>) -> Result<ModelStatus, String> {
+pub async fn capture_fetch_refine_model(
+    app: AppHandle,
+    state: State<'_, CaptureState>,
+) -> Result<ModelStatus, String> {
     #[cfg(target_os = "ios")]
     {
         let _ = (app, state);
@@ -333,43 +338,54 @@ pub async fn capture_refine(
         let prompt = crate::whisper::text::prompt(&prompt_tail, 200);
         let emitter = app.clone();
         let job = id.clone();
-        let result = tauri::async_runtime::spawn_blocking(move || -> Result<Vec<crate::store::RecordedSegment>, String> {
-            let audio = crate::whisper::wav::read(&recording)?;
-            let from = crate::whisper::ms_to_samples(from_ms).min(audio.len());
-            if audio.len() - from < crate::whisper::ms_to_samples(100) {
-                return Ok(Vec::new());
-            }
-            let engine = Arc::new(Engine::load(&model_path)?);
-            let mut session = Session::new(engine, worker_abort)?;
-            let progress = AtomicI32::new(0);
-            let finished = AtomicBool::new(false);
-            // A watcher beside the pass turns whisper.cpp's percentage into
-            // events a few times a second; the pass itself never waits on IPC.
-            std::thread::scope(|scope| {
-                scope.spawn(|| {
-                    let mut last = -1;
-                    while !finished.load(Ordering::Relaxed) {
-                        let percent = progress.load(Ordering::Relaxed);
-                        if percent != last {
-                            last = percent;
-                            let _ = emitter.emit("capture://refine-progress", RefineProgress { id: job.clone(), percent });
+        let result = tauri::async_runtime::spawn_blocking(
+            move || -> Result<Vec<crate::store::RecordedSegment>, String> {
+                let audio = crate::whisper::wav::read(&recording)?;
+                let from = crate::whisper::ms_to_samples(from_ms).min(audio.len());
+                if audio.len() - from < crate::whisper::ms_to_samples(100) {
+                    return Ok(Vec::new());
+                }
+                let engine = Arc::new(Engine::load(&model_path)?);
+                let mut session = Session::new(engine, worker_abort)?;
+                let progress = AtomicI32::new(0);
+                let finished = AtomicBool::new(false);
+                // A watcher beside the pass turns whisper.cpp's percentage into
+                // events a few times a second; the pass itself never waits on IPC.
+                std::thread::scope(|scope| {
+                    scope.spawn(|| {
+                        let mut last = -1;
+                        while !finished.load(Ordering::Relaxed) {
+                            let percent = progress.load(Ordering::Relaxed);
+                            if percent != last {
+                                last = percent;
+                                let _ = emitter.emit(
+                                    "capture://refine-progress",
+                                    RefineProgress {
+                                        id: job.clone(),
+                                        percent,
+                                    },
+                                );
+                            }
+                            std::thread::sleep(std::time::Duration::from_millis(250));
                         }
-                        std::thread::sleep(std::time::Duration::from_millis(250));
-                    }
-                });
-                let timed = session.transcribe_timed(&audio[from..], &prompt, &progress);
-                finished.store(true, Ordering::Relaxed);
-                timed
-            })
-            .map(|timed| offset_segments(timed, from_ms))
-        })
+                    });
+                    let timed = session.transcribe_timed(&audio[from..], &prompt, &progress);
+                    finished.store(true, Ordering::Relaxed);
+                    timed
+                })
+                .map(|timed| offset_segments(timed, from_ms))
+            },
+        )
         .await
         .map_err(|e| format!("the refine pass stopped: {e}"))?;
 
         match result {
             Err(_) if abort.load(Ordering::Relaxed) => Err("cancelled".into()),
             Ok(segments) => {
-                let _ = app.emit("capture://refine-progress", RefineProgress { id, percent: 100 });
+                let _ = app.emit(
+                    "capture://refine-progress",
+                    RefineProgress { id, percent: 100 },
+                );
                 Ok(segments)
             }
             Err(e) => Err(e),
@@ -380,10 +396,17 @@ pub async fn capture_refine(
 /// Timed phrases from a pass over `[from_ms, end)`, moved onto the whole
 /// recording's timeline.
 #[cfg(not(target_os = "ios"))]
-fn offset_segments(timed: Vec<crate::whisper::engine::TimedText>, from_ms: u64) -> Vec<crate::store::RecordedSegment> {
+fn offset_segments(
+    timed: Vec<crate::whisper::engine::TimedText>,
+    from_ms: u64,
+) -> Vec<crate::store::RecordedSegment> {
     timed
         .into_iter()
-        .map(|t| crate::store::RecordedSegment { text: t.text, start_ms: t.start_ms + from_ms, end_ms: t.end_ms + from_ms })
+        .map(|t| crate::store::RecordedSegment {
+            text: t.text,
+            start_ms: t.start_ms + from_ms,
+            end_ms: t.end_ms + from_ms,
+        })
         .collect()
 }
 
@@ -459,7 +482,10 @@ pub const RECORDINGS_SCHEME: &str = "rec";
 /// byte ranges, because a WebView's media element seeks by asking for them and
 /// treats a server without `Accept-Ranges` as unseekable. The id is confined
 /// the same way the store confines it (`store::recording_file`).
-pub fn serve_recording<R: tauri::Runtime>(app: &AppHandle<R>, request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
+pub fn serve_recording<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    request: &tauri::http::Request<Vec<u8>>,
+) -> tauri::http::Response<Vec<u8>> {
     use tauri::http::{header, Response, StatusCode};
     let respond = |status: StatusCode, body: Vec<u8>, extra: Vec<(header::HeaderName, String)>| {
         let mut builder = Response::builder()
@@ -471,7 +497,9 @@ pub fn serve_recording<R: tauri::Runtime>(app: &AppHandle<R>, request: &tauri::h
         for (name, value) in extra {
             builder = builder.header(name, value);
         }
-        builder.body(body).unwrap_or_else(|_| Response::new(Vec::new()))
+        builder
+            .body(body)
+            .unwrap_or_else(|_| Response::new(Vec::new()))
     };
     let path = request.uri().path().trim_start_matches('/');
     let Some(id) = path.strip_suffix(".wav") else {
@@ -494,7 +522,11 @@ pub fn serve_recording<R: tauri::Runtime>(app: &AppHandle<R>, request: &tauri::h
         .and_then(|v| {
             let (a, b) = v.split_once('-')?;
             let start: usize = a.parse().ok()?;
-            let end: usize = if b.is_empty() { total.saturating_sub(1) } else { b.parse().ok()? };
+            let end: usize = if b.is_empty() {
+                total.saturating_sub(1)
+            } else {
+                b.parse().ok()?
+            };
             (start <= end && end < total).then_some((start, end))
         });
     match range {
@@ -502,11 +534,18 @@ pub fn serve_recording<R: tauri::Runtime>(app: &AppHandle<R>, request: &tauri::h
             StatusCode::PARTIAL_CONTENT,
             bytes[start..=end].to_vec(),
             vec![
-                (header::CONTENT_RANGE, format!("bytes {start}-{end}/{total}")),
+                (
+                    header::CONTENT_RANGE,
+                    format!("bytes {start}-{end}/{total}"),
+                ),
                 (header::CONTENT_LENGTH, (end - start + 1).to_string()),
             ],
         ),
-        None => respond(StatusCode::OK, bytes, vec![(header::CONTENT_LENGTH, total.to_string())]),
+        None => respond(
+            StatusCode::OK,
+            bytes,
+            vec![(header::CONTENT_LENGTH, total.to_string())],
+        ),
     }
 }
 
@@ -525,7 +564,9 @@ pub async fn capture_start(app: AppHandle, state: State<'_, CaptureState>) -> Re
     }
     #[cfg(not(target_os = "ios"))]
     {
-        state.refine_abort.store(true, std::sync::atomic::Ordering::Relaxed);
+        state
+            .refine_abort
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         let engine = engine(&app, &state).await?;
         let abort = Arc::new(AtomicBool::new(false));
         let session = Session::new(engine, Arc::clone(&abort))?;
@@ -602,7 +643,9 @@ pub fn capture_push(
                 capture.push(&samples);
                 Ok(())
             }
-            None => Err("No capture is running - await capture_start before pushing audio.".to_string()),
+            None => {
+                Err("No capture is running - await capture_start before pushing audio.".to_string())
+            }
         }
     }
 }
@@ -636,11 +679,13 @@ pub async fn capture_stop(
         let mut recorded_ms = None;
         if let Some(id) = record_as {
             if !stopped.recording.is_empty() {
-                let dir = crate::commands::recordings_dir(&app).ok_or("no app data directory to keep recordings in")?;
+                let dir = crate::commands::recordings_dir(&app)
+                    .ok_or("no app data directory to keep recordings in")?;
                 let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
                 let recording = stopped.recording;
                 let samples = tauri::async_runtime::spawn_blocking(move || {
-                    std::fs::create_dir_all(&dir).map_err(|e| format!("could not make the recordings folder: {e}"))?;
+                    std::fs::create_dir_all(&dir)
+                        .map_err(|e| format!("could not make the recordings folder: {e}"))?;
                     crate::whisper::wav::write_pcm16(&path, &recording, append)
                 })
                 .await
@@ -653,6 +698,49 @@ pub async fn capture_stop(
             recorded_ms,
         })
     }
+}
+
+/// Move a stopped temporary capture to the note whose mutation was confirmed.
+#[tauri::command]
+pub async fn capture_reassign_recording(
+    app: AppHandle,
+    from_id: String,
+    to_id: String,
+    append: Option<bool>,
+) -> Result<Option<u64>, String> {
+    #[cfg(target_os = "ios")]
+    {
+        let _ = (app, from_id, to_id, append);
+        Err(NOT_ON_IOS.to_string())
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let dir = crate::commands::recordings_dir(&app)
+            .ok_or("no app data directory to keep recordings in")?;
+        let from = crate::store::recording_file(&dir, &from_id).ok_or("not a note id")?;
+        let to = crate::store::recording_file(&dir, &to_id).ok_or("not a note id")?;
+        let count = tauri::async_runtime::spawn_blocking(move || {
+            crate::whisper::wav::move_or_append(&from, &to, append.unwrap_or(false))
+        })
+        .await
+        .map_err(|e| format!("the recording did not move cleanly: {e}"))??;
+        Ok((count > 0).then_some(crate::whisper::samples_to_ms(count)))
+    }
+}
+
+/// Remove a stopped capture that was rejected or cancelled before it had a note.
+#[tauri::command]
+pub async fn capture_discard_recording(app: AppHandle, id: String) -> Result<(), String> {
+    let dir = crate::commands::recordings_dir(&app)
+        .ok_or("no app data directory to keep recordings in")?;
+    let path = crate::store::recording_file(&dir, &id).ok_or("not a note id")?;
+    tauri::async_runtime::spawn_blocking(move || match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("could not remove the temporary recording: {e}")),
+    })
+    .await
+    .map_err(|e| format!("the temporary recording did not clean up: {e}"))?
 }
 
 /// Winds the running capture back to `to_ms`, so what is pushed next records
@@ -672,10 +760,12 @@ pub async fn capture_rewind(state: State<'_, CaptureState>, to_ms: u64) -> Resul
             .as_ref()
             .ok_or("No capture is running.")?
             .rewind(to_ms)?;
-        tauri::async_runtime::spawn_blocking(move || heard.recv_timeout(std::time::Duration::from_secs(15)))
-            .await
-            .map_err(|e| format!("the rewind did not finish: {e}"))?
-            .map_err(|_| "The capture ended before the rewind could happen.".to_string())
+        tauri::async_runtime::spawn_blocking(move || {
+            heard.recv_timeout(std::time::Duration::from_secs(15))
+        })
+        .await
+        .map_err(|e| format!("the rewind did not finish: {e}"))?
+        .map_err(|_| "The capture ended before the rewind could happen.".to_string())
     }
 }
 
@@ -740,15 +830,23 @@ pub async fn transcribe_wav(
 /// already in this crate is Tauri's.
 #[cfg(all(test, not(target_os = "ios")))]
 mod tests {
-    use crate::whisper::model::{self, ModelSpec};
     use super::offset_segments;
     use crate::whisper::engine::TimedText;
+    use crate::whisper::model::{self, ModelSpec};
 
     #[test]
     fn a_refined_take_lands_on_the_whole_recordings_timeline() {
         let timed = vec![
-            TimedText { text: "Fresh bread.".into(), start_ms: 0, end_ms: 1200 },
-            TimedText { text: "On the way home.".into(), start_ms: 1200, end_ms: 2600 },
+            TimedText {
+                text: "Fresh bread.".into(),
+                start_ms: 0,
+                end_ms: 1200,
+            },
+            TimedText {
+                text: "On the way home.".into(),
+                start_ms: 1200,
+                end_ms: 2600,
+            },
         ];
         let segments = offset_segments(timed, 45_000);
         assert_eq!((segments[0].start_ms, segments[0].end_ms), (45_000, 46_200));
@@ -767,16 +865,28 @@ mod tests {
     fn the_active_model_downloads_through_the_mirrors_and_verifies() {
         let dir = temp_dir();
         let mut reports = Vec::new();
-        let status = tauri::async_runtime::block_on(model::fetch(&dir, &model::ACTIVE, &model::mirrors_with(&[]), |got, of| {
-            reports.push((got, of))
-        }))
+        let status = tauri::async_runtime::block_on(model::fetch(
+            &dir,
+            &model::ACTIVE,
+            &model::mirrors_with(&[]),
+            |got, of| reports.push((got, of)),
+        ))
         .unwrap();
         assert!(status.present);
         // At most one report per 1% (plus the final one), rising, and ending
         // on the whole file - the page draws receivedBytes / totalBytes.
-        assert!((10..=102).contains(&reports.len()), "{} progress reports", reports.len());
-        assert!(reports.windows(2).all(|pair| pair[0].0 < pair[1].0 || pair[1].0 == model::ACTIVE.bytes));
-        assert_eq!(reports.last(), Some(&(model::ACTIVE.bytes, model::ACTIVE.bytes)));
+        assert!(
+            (10..=102).contains(&reports.len()),
+            "{} progress reports",
+            reports.len()
+        );
+        assert!(reports
+            .windows(2)
+            .all(|pair| pair[0].0 < pair[1].0 || pair[1].0 == model::ACTIVE.bytes));
+        assert_eq!(
+            reports.last(),
+            Some(&(model::ACTIVE.bytes, model::ACTIVE.bytes))
+        );
         assert!(!dir.join(format!("{}.part", model::ACTIVE.file)).exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -791,11 +901,20 @@ mod tests {
             sha256: "0000000000000000000000000000000000000000000000000000000000000000",
         };
         let dir = temp_dir();
-        let error = tauri::async_runtime::block_on(model::fetch(&dir, &spec, &model::mirrors_with(&[]), |_, _| {})).unwrap_err();
+        let error = tauri::async_runtime::block_on(model::fetch(
+            &dir,
+            &spec,
+            &model::mirrors_with(&[]),
+            |_, _| {},
+        ))
+        .unwrap_err();
         eprintln!("{error}");
         assert!(error.contains("does not match"), "{error}");
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "a refused download left a file behind");
+        assert_eq!(
+            std::fs::read_dir(&dir).unwrap().count(),
+            0,
+            "a refused download left a file behind"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
-

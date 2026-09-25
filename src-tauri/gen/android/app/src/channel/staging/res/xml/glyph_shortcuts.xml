@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Long-press the Glyph icon for "Record note". The fallback for anyone who has
+  not made Glyph the digital assistant, and the same capture action the side key
+  sends, so both land in exactly the same place.
+-->
+<!-- The staging app's copy (build.gradle.kts): its shortcut opens the staging app, not the real one. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="capture"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/glyph_capture_short"
+        android:shortcutLongLabel="@string/glyph_capture_long">
+        <intent
+            android:action="com.mattssoftware.glyph.CAPTURE"
+            android:targetPackage="com.mattssoftware.glyph.staging"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+</shortcuts>

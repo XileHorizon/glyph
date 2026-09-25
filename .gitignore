@@ -1,7 +1,11 @@
 node_modules
 /dist
+# The MCP server as one file (scripts/build-mcp.mjs).
+/mcp/dist
 .DS_Store
 src-tauri/target
+# The host-test harness is its own Cargo workspace.
+tools/host-tests/target
 /coverage
 
 # Generated mobile projects. `tauri ios init` / `android init` rebuild these.
@@ -48,3 +52,6 @@ src-tauri/gen/android/**
 !src-tauri/gen/android/app/src/main/res/xml/glyph_*.xml
 !src-tauri/gen/android/app/src/main/res/values/
 !src-tauri/gen/android/app/src/main/res/values/glyph_strings.xml
+# Per-channel resources (build.gradle.kts GLYPH_STAGING): the launcher shortcut's target package.
+!src-tauri/gen/android/app/src/channel/
+!src-tauri/gen/android/app/src/channel/**

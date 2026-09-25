@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { enumeration, renderNote, toParagraphs, type Segment } from './markdown.ts';
+import { enumeration, renderNote, setSpokenFormats, spokenAddress, spokenInlineMarkup, spokenSlug, toParagraphs, type Segment } from './markdown.ts';
 
 /**
  * What a spoken note becomes.
@@ -56,6 +56,11 @@ describe('enumeration', () => {
 
   it('accepts an Oxford comma', () => {
     expect(enumeration('The team is Sarah, Tom, and Priya.')?.items).toEqual(['Sarah', 'Tom', 'Priya']);
+    // "these" points at the list: it is the intro's word, not the first item.
+    expect(enumeration('Pack these, the tent, the stove and the lantern.')).toEqual({
+      intro: 'Pack these',
+      items: ['the tent', 'the stove', 'the lantern'],
+    });
   });
 
   /*
@@ -151,7 +156,7 @@ describe('renderNote with local rules', () => {
 
   it('emboldens a spoken "important"', () => {
     const { markdown } = renderNote(spoken('This is a longer opening about the deadline itself.', 'Important: it moved to Friday.'));
-    expect(markdown).toContain('**Important:** it moved to Friday.');
+    expect(markdown).toContain('**Important:** It moved to Friday.');
   });
 
   // The paragraph survives rendering, not just toParagraphs: sentences of one
@@ -268,6 +273,11 @@ describe('guide cues', () => {
   it('closes on "and bold" when Whisper marked a pause after the opening cue', () => {
     expect(renderNote(spoken(opening, 'Italics, maybe, and italics.')).markdown).toContain('_maybe_.');
     expect(renderNote(spoken(opening, 'Bold. This really matters and bold.')).markdown).toContain('**This really matters**.');
+  });
+
+  it('closes on "and bold" that ends the sentence, the way Whisper writes "end bold" said plainly', () => {
+    expect(renderNote(spoken(`${opening} The deadline is bold Friday at noon and bold.`)).markdown).toContain('The deadline is **Friday at noon**.');
+    expect(renderNote(spoken(opening, 'The deadline is italics next Friday and italics.')).markdown).toContain('The deadline is _next Friday_.');
   });
 
   it('does NOT close on "and bold" with no pause after the opening word', () => {
@@ -437,3 +447,126 @@ describe('"the next item is" with the item in the next phrase', () => {
 function opening(): string {
   return 'This opening sentence is long enough not to become a title.';
 }
+
+describe('a plugin formatting said aloud', () => {
+  it('wraps "spoiler … end spoiler" in the plugin\'s delimiter, and leaves bold as it was', () => {
+    setSpokenFormats([{ word: 'spoiler', delimiter: '||' }]);
+    try {
+      expect(spokenInlineMarkup('The winner is spoiler. The butler. End spoiler. And bold. Friday. End bold.')).toBe('The winner is ||The butler||. And **Friday**.');
+      expect(spokenInlineMarkup('No spoilers here, spoiler alert.')).toBe('No spoilers here, spoiler alert.');
+    } finally {
+      setSpokenFormats([]);
+    }
+  });
+});
+
+describe('spoken marks closed with "and"', () => {
+  it('closes a common mark mid-sentence around three words or more, and leaves a short phrase alone', () => {
+    expect(spokenInlineMarkup('the hot tub is italic strictly off limits and italic after ten')).toBe('the hot tub is _strictly off limits_ after ten');
+    expect(spokenInlineMarkup('it was bold thinking and bold action')).toBe('it was bold thinking and bold action');
+  });
+});
+
+describe('spoken marks heard loosely', () => {
+  it('finds a mark inside words that start another cue, and takes any spelling of the same cue to close it', () => {
+    const formats = [
+      { word: 'spoiler', delimiter: '||' },
+      { word: 'aside', delimiter: '%%' },
+      { word: 'unsure', delimiter: '??' },
+    ];
+    expect(spokenInlineMarkup('The gate code is spoiler four four one seven end spoiler.', formats)).toBe('The gate code is ||four four one seven||.');
+    expect(spokenInlineMarkup('A side I still prefer the other place end aside.', formats)).toBe('%%I still prefer the other place%%.');
+    expect(spokenInlineMarkup('The stove is ensure gas end ensure.', formats)).toBe('The stove is ??gas??.');
+    expect(spokenInlineMarkup('bold one end italic', formats)).toBe('bold one end italic');
+  });
+});
+
+describe('every mark has words', () => {
+  /** A note opened with a sentence, so the line under test is never taken for the title. */
+  const said = (...texts: string[]) => renderNote(spoken('We met on the porch today.', ...texts)).markdown.replace(/^# We met on the porch today\n\n/, '');
+
+  it('says the inline marks', () => {
+    expect(said('This is bold italic really now end bold italic, honestly.')).toBe('This is ***really now***, honestly.');
+    expect(said('The meeting is on the 2 superscript nd end superscript of June.')).toBe('The meeting is on the 2^nd^ of June.');
+    expect(said('Water is H subscript two end subscript O.')).toBe('Water is H~2~O.');
+    expect(said('The rule holds when maths x squared plus two y end maths is small.')).toBe('The rule holds when $x^2 + 2 y$ is small.');
+    expect(said('We shipped it emoji party popper.')).toBe('We shipped it :tada:.');
+    expect(said('Thumbs up from Sam, emoji thumbs up.')).toBe('Thumbs up from Sam, :+1:.');
+  });
+
+  it('says links to pages and to lines', () => {
+    expect(said('The site is link Ghost.md to attack dot fm slash glyph end link for now.')).toBe('The site is [Ghost.md](https://attack.fm/glyph) for now.');
+    expect(said('Read link attack.fm end link later.')).toBe('Read <https://attack.fm> later.');
+    expect(said('The page waits on item link ship page end link.')).toBe('The page waits on [[#^ship-page]].');
+  });
+
+  it('names a line at its end, once per name', () => {
+    expect(said('Check box: ship the pricing page anchor ship page end anchor.', 'Check box: ship it again anchor ship page end anchor.')).toBe(
+      '- [ ] Ship the pricing page ^ship-page\n- [ ] Ship it again ^ship-page-2',
+    );
+  });
+
+  it('writes a done to-do, a definition, a footnote and a note on a mark', () => {
+    expect(said('Checked box: call Sam.')).toBe('- [ ] Call Sam');
+    expect(said('Ticked box: call Sam.')).toBe('- [x] Call Sam');
+    expect(said('Done task, book the cabin.')).toBe('- [x] Book the cabin');
+    expect(said('Define deposit as what you pay up front.')).toBe('Deposit\n: What you pay up front.');
+    expect(said('The deposit is four hundred footnote Sam said so end footnote.', 'That is fine.')).toBe('The deposit is four hundred[^1]. That is fine.\n\n[^1]: Sam said so.');
+    setSpokenFormats([{ word: 'unsure', delimiter: '??' }]);
+    try {
+      expect(said('The price is unsure four hundred end unsure, note Sam said so, end note.')).toBe('The price is ??four hundred??(Sam said so).');
+    } finally {
+      setSpokenFormats([]);
+    }
+  });
+
+  it('puts the one bookmark on the last line it was said on', () => {
+    expect(said('The deposit is four hundred, bookmark this.', 'New paragraph. The key is under the mat, bookmark here.')).toBe(
+      'The deposit is four hundred.\n\nThe key is under the mat. §§',
+    );
+  });
+
+  it('breaks a line and keeps a block of code whole across pauses', () => {
+    expect(said('Roses are red. New line. Violets are blue.')).toBe('Roses are red.  \nViolets are blue.');
+    const code = renderNote([
+      { text: 'We met on the porch today.', startMs: 0, endMs: 900 },
+      { text: 'Code block in bash.', startMs: 1000, endMs: 1900 },
+      { text: 'npm run build.', startMs: 5000, endMs: 5900 },
+      { text: 'End code block. Then we left.', startMs: 6000, endMs: 6900 },
+    ]).markdown;
+    expect(code).toBe('# We met on the porch today\n\n```bash\nnpm run build\n```\n\nThen we left.');
+  });
+
+  it('leaves the same words alone in ordinary sentences', () => {
+    for (const sentence of [
+      'They launched a new line of shoes.',
+      'The link between them is weak.',
+      'I sent Sam an emoji to say thanks.',
+      'Define your goals as early as you can.',
+      'I will bookmark this page later tonight.',
+      'The code block party was loud.',
+      'I checked the oven twice.',
+      'Done, that was easy.',
+      'The footnote was long.',
+      'Maths was my best subject.',
+      'The anchor held all night.',
+      'Superscripts are small.',
+    ]) {
+      expect(said(sentence), sentence).toBe(sentence);
+    }
+  });
+});
+
+describe('spoken addresses and names', () => {
+  it('reads an address, and nothing else', () => {
+    expect(spokenAddress('attack dot fm slash glyph')).toBe('https://attack.fm/glyph');
+    expect(spokenAddress('https colon slash slash example dot com')).toBe('https://example.com');
+    expect(spokenAddress('Ghost to attack dot fm')).toBeNull();
+    expect(spokenAddress('the weekend')).toBeNull();
+  });
+
+  it('makes a line name of what was said', () => {
+    expect(spokenSlug('Ship Page')).toBe('ship-page');
+    expect(spokenSlug('  the 2nd, draft ')).toBe('the-2nd-draft');
+  });
+});

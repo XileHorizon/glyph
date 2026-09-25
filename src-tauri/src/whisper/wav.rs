@@ -27,8 +27,7 @@ const FORMAT_EXTENSIBLE: u16 = 0xFFFE;
 
 /// Reads a WAV file from disk. See `parse`.
 pub fn read(path: &Path) -> Result<Vec<f32>, String> {
-    let bytes =
-        std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     parse(&bytes).map_err(|e| format!("{}: {e}", path.display()))
 }
 
@@ -55,16 +54,49 @@ pub fn write_pcm16(path: &Path, samples: &[i16], append: bool) -> Result<usize, 
 
     let existing = if append { ours(path) } else { None };
     let (mut file, before) = match existing {
-        Some(bytes) => (std::fs::OpenOptions::new().write(true).open(path).map_err(fail)?, bytes),
+        Some(bytes) => (
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(path)
+                .map_err(fail)?,
+            bytes,
+        ),
         None => (std::fs::File::create(path).map_err(fail)?, 0),
     };
-    file.seek(SeekFrom::Start((HEADER_LEN + before) as u64)).map_err(fail)?;
+    file.seek(SeekFrom::Start((HEADER_LEN + before) as u64))
+        .map_err(fail)?;
     file.write_all(&data).map_err(fail)?;
     let total = before + data.len();
     file.seek(SeekFrom::Start(0)).map_err(fail)?;
     file.write_all(&header(total)).map_err(fail)?;
     file.flush().map_err(fail)?;
     Ok(total / 2)
+}
+
+/** Move a recorder-owned WAV, or append it to another recorder-owned tape. */
+pub fn move_or_append(from: &Path, to: &Path, append: bool) -> Result<usize, String> {
+    if !from.is_file() {
+        return Ok(0);
+    }
+    if !append || !to.is_file() {
+        std::fs::rename(from, to).map_err(|e| format!("could not move the recording: {e}"))?;
+        return ours(to)
+            .ok_or_else(|| "the moved recording was not a recorder WAV".to_string())
+            .map(|bytes| bytes / 2);
+    }
+    let bytes =
+        std::fs::read(from).map_err(|e| format!("could not read the temporary recording: {e}"))?;
+    let data = bytes
+        .get(HEADER_LEN..)
+        .ok_or_else(|| "the temporary recording was not a recorder WAV".to_string())?;
+    let samples = data
+        .chunks_exact(2)
+        .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect::<Vec<_>>();
+    let total = write_pcm16(to, &samples, true)?;
+    std::fs::remove_file(from)
+        .map_err(|e| format!("could not remove the temporary recording: {e}"))?;
+    Ok(total)
 }
 
 /// A 16 kHz mono PCM16 header for `data_len` bytes of samples.
@@ -239,7 +271,11 @@ pub(crate) mod tests {
         let first: Vec<i16> = (0..1600).map(|i| (i % 200) as i16 * 100).collect();
         assert_eq!(write_pcm16(&path, &first, false).unwrap(), 1600);
         let second: Vec<i16> = vec![1234; 800];
-        assert_eq!(write_pcm16(&path, &second, true).unwrap(), 2400, "appending adds to the count");
+        assert_eq!(
+            write_pcm16(&path, &second, true).unwrap(),
+            2400,
+            "appending adds to the count"
+        );
         let back = read(&path).unwrap();
         assert_eq!(back.len(), 2400);
         assert!((back[2399] - 1234.0 / 32768.0).abs() < 1e-3);
@@ -248,7 +284,11 @@ pub(crate) mod tests {
         let mut bytes = std::fs::read(&path).unwrap();
         bytes[40..44].copy_from_slice(&(1600u32 * 2).to_le_bytes());
         std::fs::write(&path, &bytes).unwrap();
-        assert_eq!(write_pcm16(&path, &second, true).unwrap(), 3200, "the orphaned tail counts");
+        assert_eq!(
+            write_pcm16(&path, &second, true).unwrap(),
+            3200,
+            "the orphaned tail counts"
+        );
         assert_eq!(read(&path).unwrap().len(), 3200);
         // Not ours: replaced, not corrupted.
         std::fs::write(&path, b"not a wav").unwrap();

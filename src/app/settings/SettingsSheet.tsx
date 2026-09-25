@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { Info, Mic, Puzzle, RefreshCw, Sparkles, SunMoon, Terminal, Type, Vibrate } from '@glacier/icons';
+import { useEffect, useState } from 'react';
+import { BookOpen, CircleUser, FlaskConical, Info, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
+import { useAccount } from '../core/account/account.ts';
+import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
+import { AccountPane } from './AccountPane.tsx';
 import { gb, modelName, MODELS, useModels } from '../core/ai.ts';
 import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
@@ -7,11 +10,14 @@ import type { Updates } from '../core/ota.ts';
 import { usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { useDeveloperMode } from './developerMode.ts';
+import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { FormattingPane } from './FormattingPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/registry.ts';
-import { AboutPane, DeveloperPane, FeelPane, RecordingPane, ThemePane, TypePane, UpdatesPane } from './panes.tsx';
+import { AboutPane, AnimationsPane, DeveloperPane, FeelPane, RecordingPane, AppearancePane, TypePane } from './panes.tsx';
 import { SettingsScreen, type SettingsSection } from './SettingsScreen.tsx';
+import { TestResultsPane } from './TestResultsPane.tsx';
+import { reportSummary } from '../diag/testReport.ts';
 
 /**
  * Settings: the sections and their live one-line readings, handed to the
@@ -31,19 +37,50 @@ interface SettingsSheetProps {
   updates: Updates;
   /** Open the walkthrough, on its first page or a given one (Guide's page indexes). */
   onGuide: (page?: number) => void;
+  /** Make the sample note, the one with every mark in it (core/seed.ts), and open it. */
+  onSample: () => void;
+  /** Adds the example board (core/boardNote.ts). */
+  onBoard: () => void;
+  /** Adds the example canvas (canvas/sampleCanvas.ts). */
+  onCanvas: () => void;
+  /** Adds the canvas that says how Glyph works (canvas/howCanvas.ts). */
+  onHowCanvas: () => void;
+  /** Opens Glyph Academy (academy/AcademyScreen.tsx). */
+  onAcademy: () => void;
+  /**
+   * Asked from outside to open at the cheat sheet - the Academy's summary sends people there for the marks it has
+   * not taught yet. The moment it was asked for, so asking twice opens it twice; 0 for not asked.
+   */
+  toCheatSheet?: number;
 }
 
 const SIZE_WORDS: Record<string, string> = { large: 'Large', larger: 'Larger', largest: 'Largest' };
 const FACE_WORDS: Record<string, string> = { inter: 'Inter', noto: 'Noto', plex: 'Plex' };
+// Only said in the row's reading when it is not the one the app is drawn at.
+const DENSITY_WORDS: Record<string, string> = {
+  'extra-compact': 'Tightest',
+  compact: 'Tight',
+  comfortable: 'Comfortable',
+  spacious: 'Roomy',
+  'more-space': 'Roomiest',
+};
 const THEME_WORDS: Record<string, string> = { system: 'System', light: 'Light', dark: 'Dark' };
+const ACCENT_WORDS: Record<string, string> = { graphite: 'Graphite', red: 'Red', amber: 'Amber', green: 'Green', teal: 'Teal', purple: 'Purple' };
+const ROUNDING_WORDS: Record<string, string> = { square: 'Square', soft: 'Soft', round: 'Round', rounder: 'Roundest' };
 
-export function SettingsSheet({ open, onClose, updates, onGuide }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0 }: SettingsSheetProps) {
   const prefs = usePreferences();
+  const account = useAccount();
+  const syncStatus = useSyncStatus();
   const haptics = useHapticsPref();
   const devMode = useDeveloperMode();
   const { all: allPlugins, enabled: plugins } = usePlugins();
   const { models } = useModels();
   const [goTo, setGoTo] = useState<{ id: string; nonce: number } | null>(null);
+  // Opened from the Academy: the sheet comes up on the cheat sheet itself rather than on the list of sections.
+  useEffect(() => {
+    if (toCheatSheet) setGoTo({ id: 'cheatsheet', nonce: toCheatSheet });
+  }, [toCheatSheet]);
 
   const chosenModel = MODELS.find((m) => m.id === prefs.formatModel);
   const modelHere = models.find((m) => m.id === prefs.formatModel)?.present ?? false;
@@ -60,20 +97,39 @@ export function SettingsSheet({ open, onClose, updates, onGuide }: SettingsSheet
   else updatesSummary = updates.lastChecked ? 'Up to date' : 'Not checked yet';
 
   const sections: SettingsSection[] = [
+    // Who you are, first and on its own card (Matt: "move account to top of settings section"): it is what a person
+    // opens Settings for on a new phone, and everything below it is how the app behaves once they are in.
+    {
+      id: 'account',
+      label: 'Account',
+      icon: <CircleUser size={16} />,
+      content: <AccountPane />,
+      summary: syncSummary(account.session?.handle ?? null, syncStatus),
+      group: 5,
+    },
     {
       id: 'type',
       label: 'Type',
       icon: <Type size={16} />,
       content: <TypePane />,
+      // Spacing moved to Appearance, where the rest of how the app is drawn lives.
       summary: `${SIZE_WORDS[prefs.textSize] ?? prefs.textSize} · ${FACE_WORDS[prefs.typeface] ?? prefs.typeface}`,
       group: 0,
     },
     {
       id: 'theme',
-      label: 'Theme',
+      label: 'Appearance',
       icon: <SunMoon size={16} />,
-      content: <ThemePane />,
-      summary: THEME_WORDS[prefs.theme] ?? prefs.theme,
+      content: <AppearancePane />,
+      // The page, then anything else that has been moved off its default: the colour, the air, the corners.
+      summary: [
+        THEME_WORDS[prefs.theme] ?? prefs.theme,
+        prefs.accent === 'ink' ? null : ACCENT_WORDS[prefs.accent] ?? prefs.accent,
+        prefs.density === 'comfortable' ? null : DENSITY_WORDS[prefs.density] ?? prefs.density,
+        prefs.rounding === 'round' ? null : ROUNDING_WORDS[prefs.rounding] ?? prefs.rounding,
+      ]
+        .filter(Boolean)
+        .join(' · '),
       group: 0,
     },
     ...(isAndroid
@@ -83,7 +139,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide }: SettingsSheet
             label: 'Recording',
             icon: <Mic size={16} />,
             content: <RecordingPane />,
-            summary: [prefs.memo ? 'Memo mode' : 'A note a take', prefs.refine ? 'better words' : null].filter(Boolean).join(' · '),
+            summary: prefs.refine ? 'A note a take · better words' : 'A note a take',
             group: 1,
           },
         ]
@@ -127,24 +183,49 @@ export function SettingsSheet({ open, onClose, updates, onGuide }: SettingsSheet
       id: 'plugins',
       label: 'Plugins',
       icon: <Puzzle size={16} />,
-      content: <PluginsPane />,
+      // A card's row lands on that plugin's own page (plugins/PluginsPane.tsx).
+      content: <PluginsPane onOpen={(id) => setGoTo({ id, nonce: Date.now() })} />,
       summary: `${plugins.length} of ${allPlugins.length} on`,
       group: 2,
     },
     {
-      id: 'updates',
-      label: 'Updates',
-      icon: <RefreshCw size={16} />,
-      content: <UpdatesPane updates={updates} />,
-      summary: updatesSummary,
+      id: 'animations',
+      label: 'Animations',
+      icon: <Waves size={16} />,
+      content: <AnimationsPane />,
+      summary:
+        [prefs.wisp ? 'Ghostly typing' : null, prefs.wispEdge ? 'smoke' : null, prefs.ripples ? 'ripples' : null, prefs.motionSpeed !== 'normal' ? prefs.motionSpeed : null]
+          .filter(Boolean)
+          .join(' · ') || 'All still',
+      group: 1,
+    },
+    {
+      id: 'cheatsheet',
+      label: 'Cheat sheet',
+      icon: <BookOpen size={16} />,
+      content: <CheatSheet />,
+      summary: 'Every mark and every cue',
       group: 3,
     },
     {
       id: 'about',
       label: 'About',
       icon: <Info size={16} />,
-      content: <AboutPane updates={updates} onGuide={onGuide} onDeveloper={() => setGoTo({ id: 'developer', nonce: Date.now() })} />,
-      summary: updates.version,
+      content: (
+        <AboutPane
+          updates={updates}
+          onGuide={onGuide}
+          onSample={onSample}
+          onBoard={onBoard}
+          onCanvas={onCanvas}
+          onHowCanvas={onHowCanvas}
+          onAcademy={onAcademy}
+          onCheatSheet={() => setGoTo({ id: 'cheatsheet', nonce: Date.now() })}
+          onDeveloper={() => setGoTo({ id: 'developer', nonce: Date.now() })}
+        />
+      ),
+      // The version and where it stands, now that updates live on this page too.
+      summary: `${updates.version} · ${updatesSummary}`,
       group: 3,
     },
     ...(devMode
@@ -155,6 +236,14 @@ export function SettingsSheet({ open, onClose, updates, onGuide }: SettingsSheet
             icon: <Terminal size={16} />,
             content: <DeveloperPane onGuide={onGuide} />,
             summary: 'Set-up, reset',
+            group: 4,
+          },
+          {
+            id: 'test-results',
+            label: 'Test results',
+            icon: <FlaskConical size={16} />,
+            content: <TestResultsPane />,
+            summary: reportSummary(),
             group: 4,
           },
         ]

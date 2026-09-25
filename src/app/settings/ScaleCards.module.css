@@ -1,0 +1,138 @@
+/*
+ * The interface-size cards (ScaleCards.tsx): the theme cards' language (ThemeCards.module.css) - the hairline, the
+ * accent ring when chosen - on five small cards in a row, each holding the same row of the app drawn at its step. The
+ * row inside is in em, and the card sets its font size to the step, so the piece scales as the app does.
+ */
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--glacier-space-2);
+  inline-size: 100%;
+}
+
+.option {
+  position: relative;
+  display: grid;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+  padding-block-end: var(--glacier-space-2);
+  overflow: hidden;
+  border: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+  background: var(--glacier-surface-raised, var(--app-raised));
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out),
+    box-shadow var(--glacier-duration-fast, 160ms) var(--glacier-ease-out, ease-out);
+}
+
+.option:hover {
+  border-color: var(--glacier-border-strong);
+}
+
+.option[data-selected] {
+  border-color: var(--glacier-accent-solid);
+  box-shadow: 0 0 0 1px var(--glacier-accent-solid);
+}
+
+.input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.option:has(.input:focus-visible) {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The piece of the app, centred in a fixed-height window so the five cards line up whatever their step. */
+.preview {
+  display: grid;
+  place-items: center;
+  block-size: 3.25rem;
+  overflow: hidden;
+  border-block-end: var(--glacier-hairline, 1px) solid var(--glacier-border-subtle);
+  background: var(--app-paper-2);
+  color: var(--app-ink);
+}
+
+/* No wider than its card: on a phone the largest step's piece would run past the edge, so the lines give way first. */
+.piece {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  inline-size: 3.4em;
+  max-inline-size: calc(100% - 0.6rem);
+}
+
+.icon {
+  flex: none;
+  inline-size: 0.7em;
+  block-size: 0.7em;
+  border-radius: 0.18em;
+  background: var(--app-ink);
+}
+
+.lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.18em;
+  min-inline-size: 0;
+}
+
+.line {
+  block-size: 0.22em;
+  border-radius: 999px;
+  background: var(--app-ink);
+}
+
+.line[data-short] {
+  inline-size: 60%;
+  opacity: 0.45;
+}
+
+.switch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  inline-size: 0.95em;
+  block-size: 0.55em;
+  padding: 0.07em;
+  border-radius: 999px;
+  background: var(--glacier-accent-solid, var(--app-ink));
+}
+
+.knob {
+  inline-size: 0.41em;
+  block-size: 0.41em;
+  margin-inline-start: auto;
+  border-radius: 999px;
+  background: var(--app-paper);
+}
+
+.label {
+  text-align: center;
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: var(--glacier-leading-sm);
+  color: var(--glacier-text-muted);
+}
+
+.option[data-selected] .label {
+  color: var(--glacier-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option {
+    transition: none;
+  }
+}

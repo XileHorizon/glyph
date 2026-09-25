@@ -27,8 +27,21 @@ interface Run {
 function runsOf(lines: readonly string[]): Run[] {
   const runs: Run[] = [];
   let i = 0;
+  let fence: string | null = null;
   while (i < lines.length) {
-    const head = ITEM.exec(lines[i] ?? '');
+    const line = lines[i] ?? '';
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1] ?? null;
+    if (marker) {
+      if (!fence) fence = marker.charAt(0);
+      else if (marker.charAt(0) === fence) fence = null;
+      i += 1;
+      continue;
+    }
+    if (fence) {
+      i += 1;
+      continue;
+    }
+    const head = ITEM.exec(line);
     if (!head) {
       i += 1;
       continue;
@@ -166,6 +179,17 @@ function itemShaped(text: string): boolean {
   return words <= 30 && sentences <= 2;
 }
 
+/** Title-owned defaults when a list has no items yet. */
+function semanticListKind(body: string): 'task' | 'bullet' | null {
+  const title = (body.split('\n').find((line) => line.trim()) ?? '')
+    .replace(/^#{1,6}\s+/, '')
+    .trim()
+    .toLowerCase();
+  if (/^(?:to\s*-?\s*do|todo|tasks?)$/.test(title)) return 'task';
+  if (/^(?:groceries|grocery|shopping|list)$/.test(title)) return 'bullet';
+  return null;
+}
+
 /**
  * "Leave a note on the page for AttackFM that says the login is broken on
  * Android": `text` put where it belongs in `body`. A note with a list takes it
@@ -174,11 +198,12 @@ function itemShaped(text: string): boolean {
  * takes it as its own paragraph at the end. Answers the new body, the lines
  * added and which it was.
  */
-export function leaveNote(body: string, text: string): { body: string; added: string[]; into: 'list' | 'paragraph' } {
+export function leaveNote(body: string, text: string, { asParagraph = false } = {}): { body: string; added: string[]; into: 'list' | 'paragraph' } {
   const words = text.replace(LEAD_IN, '').replace(/^["“]+|["”]+$/g, '').trim();
   if (!words) return { body, added: [], into: 'paragraph' };
   const lines = body.split('\n');
-  if (runsOf(lines).length && itemShaped(words)) {
+  // Asked for as a line (the memo flow's "add a line"), it is one, list or no list.
+  if (!asParagraph && runsOf(lines).length && itemShaped(words)) {
     return { ...appendToList(body, [words], { near: words }), into: 'list' };
   }
   const sentence = words.charAt(0).toUpperCase() + words.slice(1);
@@ -188,9 +213,13 @@ export function leaveNote(body: string, text: string): { body: string; added: st
 }
 
 export interface Placing {
-  how: 'leave' | 'item';
+  /** "leave": where it fits; "item": a list item; "paragraph": its own paragraph, whatever the note holds. */
+  how: 'leave' | 'item' | 'paragraph';
   task: boolean;
   many: boolean;
+  near?: string;
+  /** Items already told apart by the command: each is one item, commas and all. */
+  items?: readonly string[];
 }
 
 /**
@@ -199,9 +228,66 @@ export interface Placing {
  * several. What the recorder shows before asking, and what it does after a yes,
  * are both this, so the preview is the result.
  */
-export function placeWords(body: string, spoken: string, { how, task, many }: Placing): { body: string; added: string[]; into: 'list' | 'paragraph' } {
-  if (how === 'leave') return leaveNote(body, spoken);
-  const listed = many || /,/.test(spoken) ? enumeration(`Items: ${spoken}`)?.items : null;
+export function placeWords(body: string, spoken: string, { how, task, many, near, items: told }: Placing): { body: string; added: string[]; into: 'list' | 'paragraph' } {
+  const semantic = semanticListKind(body);
+  if (how === 'item' && told?.length) return { ...appendToList(body, told, { asTasks: task || semantic === 'task', near }), into: 'list' };
+  if (how === 'paragraph') return leaveNote(body, spoken, { asParagraph: true });
+  if (how === 'leave' && !semantic) return leaveNote(body, spoken);
+  // Several said one after another arrive joined with commas: each is an item, two as much as five.
+  const explicit = many && /,/.test(spoken) ? spoken.split(/\s*,\s*/).filter(Boolean) : null;
+  const listed = explicit ?? (many || /,/.test(spoken) ? enumeration(`Items: ${spoken}`)?.items : null);
   const items = listed?.length ? listed : [spoken];
-  return { ...appendToList(body, items, { asTasks: task }), into: 'list' };
+  return { ...appendToList(body, items, { asTasks: task || semantic === 'task', near }), into: 'list' };
+}
+
+export type InstructionArea = 'bugs' | 'tasks' | 'list' | 'notes' | null;
+
+/**
+ * Places an inferred append inside an explicitly named Markdown section. Only
+ * the section slice is rewritten; front matter, other headings, tables, HTML,
+ * and fenced code stay byte-for-byte unchanged.
+ */
+export function placeInstruction(
+  body: string,
+  content: string,
+  area: InstructionArea,
+): { body: string; added: string[]; into: 'list' | 'paragraph' } {
+  if (!area) {
+    const semantic = semanticListKind(body);
+    if (semantic) return { ...appendToList(body, [content], { asTasks: semantic === 'task', near: content }), into: 'list' };
+    return leaveNote(body, content);
+  }
+  if (area === 'notes') return leaveNote(body, content);
+  const lines = body.split('\n');
+  const wanted = area === 'list' ? /\b(?:list|items?)\b/i : area === 'bugs' ? /\b(?:bugs?|issues?|defects?)\b/i : /\b(?:tasks?|to-?dos?|actions?)\b/i;
+  let fence: string | null = null;
+  let heading = -1;
+  let level = 7;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? '';
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1] ?? null;
+    if (marker) {
+      if (!fence) fence = marker.charAt(0);
+      else if (marker.charAt(0) === fence) fence = null;
+      continue;
+    }
+    if (fence) continue;
+    const match = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
+    if (!match) continue;
+    const currentLevel = match[1]?.length ?? 7;
+    if (heading < 0 && wanted.test(match[2] ?? '')) {
+      heading = i;
+      level = currentLevel;
+    } else if (heading >= 0 && currentLevel <= level) {
+      end = i;
+      break;
+    }
+  }
+  if (heading < 0) return { ...appendToList(body, [content], { asTasks: area === 'tasks', near: area }), into: 'list' };
+  const section = lines.slice(heading + 1, end).join('\n');
+  const placed = appendToList(section, [content], { asTasks: area === 'tasks', near: area });
+  const replacement = placed.body.split('\n');
+  const next = [...lines.slice(0, heading + 1), ...replacement, ...lines.slice(end)];
+  return { body: next.join('\n'), added: placed.added, into: 'list' };
 }

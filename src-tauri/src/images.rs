@@ -162,6 +162,30 @@ pub fn keep(images: &Path, bytes: &[u8]) -> Result<String, String> {
     Ok(name)
 }
 
+/// Keeps a picture that arrived by sync under the name it already has on the
+/// device it came from, which is the name its notes refer to it by. The bytes
+/// still have to be a picture, and of the kind the name says.
+pub fn place(images: &Path, name: &str, base64: &str) -> Result<(), String> {
+    if !valid_name(name) {
+        return Err("That is not a picture name.".to_string());
+    }
+    let bytes = decode(base64)?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("That picture is too big to add.".to_string());
+    }
+    let extension = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+    let said = kind(&bytes).ok_or_else(|| "That is not a picture Glyph can add.".to_string())?;
+    if said != extension && !(said == "jpg" && extension == "jpeg") {
+        return Err("That picture is not what its name says.".to_string());
+    }
+    std::fs::create_dir_all(images).map_err(|e| format!("There is no room to keep pictures: {e}"))?;
+    let part = images.join(format!(".{name}.part"));
+    std::fs::write(&part, &bytes).and_then(|()| std::fs::rename(&part, images.join(name))).map_err(|e| {
+        let _ = std::fs::remove_file(&part);
+        format!("The picture could not be saved: {e}")
+    })
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SavedImage {
     pub name: String,
@@ -193,7 +217,7 @@ pub fn save_image_data(app: tauri::AppHandle, base64: String) -> Result<SavedIma
 /// Removes the pictures a deleted note referred to, unless another note still
 /// does. Best effort: a picture that cannot be removed is left, and the delete
 /// it follows has already happened.
-pub fn remove_unreferenced<R: tauri::Runtime>(app: &tauri::AppHandle<R>, store: &crate::store::Store, body: &str) {
+pub fn remove_unreferenced<R: tauri::Runtime>(app: &tauri::AppHandle<R>, store: &crate::library::Library, body: &str) {
     let Some(dir) = images_dir(app) else { return };
     for name in referenced(body) {
         if store.image_in_use(&name).unwrap_or(true) {
@@ -287,6 +311,19 @@ mod tests {
         assert!(decode(&"A".repeat((MAX_BYTES / 3 * 4 + 8) as usize)).is_err());
         assert_eq!(std::fs::read_dir(&images).unwrap().count(), 2);
         let _ = std::fs::remove_dir_all(images);
+    }
+
+    #[test]
+    fn a_synced_picture_keeps_its_name_only_if_it_is_what_the_name_says() {
+        use base64::Engine as _;
+        let dir = temp("place");
+        let jpeg = base64::engine::general_purpose::STANDARD.encode([0xFF, 0xD8, 0xFF, 0xE0, 1, 2]);
+        place(&dir, "abc.jpg", &jpeg).unwrap();
+        assert_eq!(std::fs::read(dir.join("abc.jpg")).unwrap(), vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2]);
+        assert!(place(&dir, "abc.png", &jpeg).is_err(), "a JPEG named as a PNG");
+        assert!(place(&dir, "../abc.jpg", &jpeg).is_err());
+        let text = base64::engine::general_purpose::STANDARD.encode(b"hello");
+        assert!(place(&dir, "t.jpg", &text).is_err());
     }
 
     #[test]

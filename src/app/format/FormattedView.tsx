@@ -8,13 +8,16 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import type { Formatter } from './formatter.ts';
+import { AiCard } from './AiCard.tsx';
 import { modeWords } from './modes.ts';
 import { APPLIED, EDITED } from './pipeline.ts';
-import { Thinking } from './Thinking.tsx';
 import styles from './Formatted.module.css';
 
 /** A pause in typing after which an edit is kept, as the note's own editor does. */
 const KEEP_DEBOUNCE_MS = 400;
+
+/** Where the text goes: in place of the note, above it, or below it. */
+export type ApplyHow = 'replace' | 'prepend' | 'append';
 
 /**
  * The robot's view of a note: the model's text in the chosen mode - the note
@@ -52,8 +55,8 @@ export function FormattedView({
   formatter: Formatter;
   currentBody: () => string;
   dark: boolean;
-  /** Makes the text the note itself; the screen owns the note's editor, so it does the replacing. */
-  onApply?: (text: string) => void;
+  /** Puts the text into the note - in place of it, above it or below it; the screen owns the note's editor, so it does the editing. */
+  onApply?: (text: string, how: ApplyHow) => void;
   /** Back to the note: the Close word, and the phone's back gesture. */
   onClose: () => void;
 }) {
@@ -159,20 +162,25 @@ export function FormattedView({
   const stale = state.kind === 'done' && formatter.stale(currentBody());
   const restart = () => formatter.start(currentBody(), present, true);
 
-  // Apply: what is on screen becomes the note, an edit still being typed
-  // included. Not while a pass writes, not for a text the note has outgrown
-  // (Update first), and not again for one already applied.
+  // Apply: what is on screen goes into the note, an edit still being typed
+  // included - in place of the note, above it (a summary on top) or below it.
+  // Matt: "there is no way to accept, append or prepend a summary or
+  // enhancement". The word opens the three; Back closes them. Not while a
+  // pass writes, not for a text the note has outgrown (Update first), and
+  // not again for one already applied.
   const canApply = Boolean(onApply) && state.kind === 'done' && state.revising === null && !stale && state.model !== APPLIED && text !== '';
-  const apply = () => {
+  const [choosing, setChoosing] = useState(false);
+  const apply = (how: ApplyHow) => {
+    setChoosing(false);
     flushKeep();
-    onApply?.(view.current?.state.doc.toString() ?? text);
+    onApply?.(view.current?.state.doc.toString() ?? text, how);
   };
 
   const pace = (perSecond: number) => `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} tokens a second`;
 
   let line: React.ReactNode;
   if (!isTauri()) {
-    line = <span>The robot runs on the phone. Install Glyph on Android to use it.</span>;
+    line = <span>The robot runs on the phone. Install Ghost.md on Android to use it.</span>;
   } else if (state.kind === 'running') {
     const { phase } = state;
     const who = state.passes > 1 ? `a draft with ${modelName(state.model)}` : `with ${modelName(state.model)}`;
@@ -215,7 +223,7 @@ export function FormattedView({
   } else if (models.models.length && !anyPresent) {
     // No model at all yet; the passes make do with any that is here, so only
     // an empty phone is asked to get one.
-    line = models.download ? <span>Getting {modelName(models.download.id)}, {gb(models.download.received)} of {gb(models.download.total)}. Keep Glyph open.</span> : null;
+    line = models.download ? <span>Getting {modelName(models.download.id)}, {gb(models.download.received)} of {gb(models.download.total)}. Keep Ghost.md open.</span> : null;
   } else if (!models.models.length) {
     line = <span>Looking for the model.</span>;
   } else if (ready && !currentBody().trim()) {
@@ -246,17 +254,40 @@ export function FormattedView({
           <span style={{ inlineSize: '64%' }} />
         </div>
       ) : null}
-      {!waiting ? (
+      {/* A pass writing and nothing on screen yet: the card, with the reader and the phone's readings. */}
+      {!waiting && state.kind === 'running' && text === '' ? (
+        <AiCard
+          model={state.model}
+          phase={state.phase}
+          doing={words.doing}
+          pass={{ at: state.pass, of: state.passes }}
+          promptTokens={state.promptTokens}
+          promptTokensDone={state.promptTokensDone}
+          outputTokens={state.outputTokens}
+          tokensPerSecond={state.tokensPerSecond}
+          elapsedMs={state.elapsedMs}
+          hardware={state.hardware}
+        >
+          {isTauri() ? <Word onPress={formatter.stop}>Stop</Word> : null}
+        </AiCard>
+      ) : null}
+      {!waiting && !(state.kind === 'running' && text === '') ? (
         <p className={styles.line} role="status" data-busy={busy || undefined}>
           {line}
-          {canApply ? <Word onPress={apply}>Apply</Word> : null}
-          {action}
-          <Word onPress={onClose}>Close</Word>
+          {canApply && !choosing ? <Word onPress={() => setChoosing(true)}>Apply</Word> : null}
+          {canApply && choosing ? (
+            <>
+              <Word onPress={() => apply('replace')}>Replace note</Word>
+              <Word onPress={() => apply('prepend')}>Add above</Word>
+              <Word onPress={() => apply('append')}>Add below</Word>
+              <Word onPress={() => setChoosing(false)}>Back</Word>
+            </>
+          ) : null}
+          {!choosing ? action : null}
+          {!choosing ? <Word onPress={onClose}>Close</Word> : null}
         </p>
       ) : null}
       {models.problem ? <p className={styles.line}>{models.problem}</p> : null}
-      {/* The wait before the first word: the little reader, until text arrives. */}
-      {state.kind === 'running' && text === '' ? <Thinking phase={state.phase} /> : null}
       {wantsModel ? (
         <div className={styles.empty}>
           <p>The robot needs a model on the phone. It runs here; nothing leaves the phone.</p>
