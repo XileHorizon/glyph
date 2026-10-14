@@ -1,5 +1,9 @@
 import { EditorView } from '@codemirror/view';
 
+/** The page's ink and paper, light then dark, as ink.css sets them (--app-gray-12 / --app-gray-1): for the selection, which can't read the tokens. */
+const SELECTION_INK = ['oklch(0.16 0 0)', 'oklch(0.965 0 0)'] as const;
+const SELECTION_PAPER = ['oklch(0.995 0 0)', 'oklch(0.11 0 0)'] as const;
+
 /**
  * CodeMirror's own styling layer, expressed entirely in Glacier tokens.
  *
@@ -64,11 +68,16 @@ export const glyphTheme = (dark: boolean) =>
       '&.cm-focused': {
         outline: 'none',
       },
-      // The native selection, coloured. Glyph deliberately does not install
-      // `drawSelection`, so these are real browser selections with real grab
-      // handles, a real magnifier, and the real callout menu.
-      '.cm-line ::selection': { backgroundColor: 'var(--glacier-selection)' },
-      '.cm-line::selection': { backgroundColor: 'var(--glacier-selection)' },
+      // The native selection, printed in reverse: solid ink behind the words and the words in paper, black on the
+      // light page and white on the dark (Matt: "make the text highlight solid white or solid black instead with
+      // inverted text based on the theme"). Glyph deliberately does not install `drawSelection`, so these are real
+      // browser selections with real grab handles and a real magnifier.
+      // Literal colours rather than the tokens, and the fill colour as well as `color`: a highlight pseudo-element
+      // resolves custom properties late or not at all in some WebView builds, and Android paints selected text
+      // through the fill, so a token here can leave the words in their own colour on the bar (Matt: "the text
+      // highlighted isn't white").
+      '.cm-line ::selection': { backgroundColor: SELECTION_INK[dark ? 1 : 0], color: SELECTION_PAPER[dark ? 1 : 0], WebkitTextFillColor: SELECTION_PAPER[dark ? 1 : 0] },
+      '.cm-line::selection': { backgroundColor: SELECTION_INK[dark ? 1 : 0], color: SELECTION_PAPER[dark ? 1 : 0], WebkitTextFillColor: SELECTION_PAPER[dark ? 1 : 0] },
       '.cm-placeholder': { color: 'var(--glacier-text-subtle)' },
     },
     { dark },

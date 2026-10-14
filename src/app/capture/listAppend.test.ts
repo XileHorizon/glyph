@@ -44,7 +44,7 @@ describe('leaving a spoken note in another note', () => {
   });
 
   it('picks the list it fits when a note has several', () => {
-    const body = '# Glyph\n\n## Bugs\n\n- Paste drops pictures\n- Menu runs off the edge\n\n## Ideas\n\n- Wake word\n- Shared notes\n';
+    const body = '# Ghost.md\n\n## Bugs\n\n- Paste drops pictures\n- Menu runs off the edge\n\n## Ideas\n\n- Wake word\n- Shared notes\n';
     expect(leaveNote(body, 'to fix the bug where the menu flickers').added).toEqual(['- Fix the bug where the menu flickers']);
     expect(leaveNote(body, 'to fix the bug where the menu flickers').body).toContain('- Menu runs off the edge\n- Fix the bug where the menu flickers\n\n## Ideas');
     expect(leaveNote(body, 'an idea for voice shortcuts').body).toMatch(/- Shared notes\n- An idea for voice shortcuts\n$/);

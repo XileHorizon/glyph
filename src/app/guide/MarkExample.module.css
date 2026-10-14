@@ -1,0 +1,48 @@
+/*
+ * A mark's example (MarkExample.tsx): the note's own editor, read-only, sitting
+ * in a card. The editor brings its own look (editor/glyphTheme.ts); what is
+ * here is only the room it sits in - no page padding, no caret, no scrolling of
+ * its own, and text that matches the page around it rather than the note's.
+ */
+
+.example {
+  /* The card is the example's room: a quote or a block of code stands clear of the card by its own padding, not the page's gutter. */
+  --app-gutter: 0px;
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+}
+
+.example :global(.cm-editor) {
+  background: none;
+}
+
+.example :global(.cm-scroller) {
+  overflow: visible;
+  font-family: inherit;
+  line-height: inherit;
+}
+
+.example :global(.cm-content) {
+  padding: 0;
+  caret-color: transparent;
+}
+
+.example :global(.cm-line) {
+  padding-inline: 0;
+}
+
+.example :global(.cm-cursor),
+.example :global(.cm-gutters) {
+  display: none;
+}
+
+/* A board is the one example wider than its card: it scrolls inside itself, as it does in a note. */
+.example[data-looks='board'] :global(.cm-board) {
+  margin-block: 0.2em 0.4em;
+}
+
+.waiting {
+  margin: 0;
+  color: var(--glacier-text-subtle);
+}

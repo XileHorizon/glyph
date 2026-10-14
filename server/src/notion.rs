@@ -1,4 +1,4 @@
-//! "Sign in with Notion" for Glyph: the half of Notion's OAuth that needs a
+//! "Sign in with Notion" for Ghost.md: the half of Notion's OAuth that needs a
 //! secret, and nothing else.
 //!
 //! A public Notion integration signs a person in with a code that has to be
@@ -13,7 +13,7 @@
 //! about a workspace is logged. `refresh` swaps a refresh token the same way.
 //!
 //!   GET  /glyph/api/notion/start?state&challenge  -> 302 to Notion
-//!   GET  /glyph/api/notion/callback?code&state     -> a page to go back to Glyph
+//!   GET  /glyph/api/notion/callback?code&state     -> a page to go back to Ghost.md
 //!   POST /glyph/api/notion/claim  { state, verifier }  -> tokens | 202 pending | 404
 //!   POST /glyph/api/notion/refresh { refreshToken }    -> tokens
 //!
@@ -143,10 +143,10 @@ fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// The page a browser lands on after Notion: one sentence, in Glyph's ink.
+/// The page a browser lands on after Notion: one sentence, in Ghost.md's ink.
 fn page(status: StatusCode, heading: &str, line: &str) -> Response {
     let body = format!(
-        "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>Glyph</title>\
+        "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>Ghost.md</title>\
          <style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#000;color:#f5f5f5;font:17px/1.4 system-ui,sans-serif}}\
          main{{max-width:22rem;padding:2rem}}h1{{font-size:2rem;margin:0 0 .5rem;letter-spacing:-.02em}}p{{color:#9a9a9a;margin:0}}</style>\
          <main><h1>{}</h1><p>{}</p></main>",
@@ -171,15 +171,15 @@ async fn start(State(notion): State<Arc<Notion>>, ConnectInfo(peer): ConnectInfo
         return page(StatusCode::TOO_MANY_REQUESTS, "Slow down", "Too many sign-ins in a minute. Try again shortly.");
     }
     if !notion.configured() {
-        return page(StatusCode::SERVICE_UNAVAILABLE, "Not set up yet", "Sign in with Notion isn't switched on for Glyph yet.");
+        return page(StatusCode::SERVICE_UNAVAILABLE, "Not set up yet", "Sign in with Notion isn't switched on for Ghost.md yet.");
     }
     if !well_formed(&query.state) || !well_formed(&query.challenge) {
-        return page(StatusCode::BAD_REQUEST, "That link is broken", "Start the sign-in again from Glyph.");
+        return page(StatusCode::BAD_REQUEST, "That link is broken", "Start the sign-in again from Ghost.md.");
     }
     let now = Instant::now();
     {
         let Ok(mut pending) = notion.pending.lock() else {
-            return page(StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong", "Start the sign-in again from Glyph.");
+            return page(StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong", "Start the sign-in again from Ghost.md.");
         };
         Notion::prune(&mut pending, now);
         if pending.len() >= MAX_PENDING && !pending.contains_key(&query.state) {
@@ -209,7 +209,7 @@ async fn callback(State(notion): State<Arc<Notion>>, ConnectInfo(peer): ConnectI
         return page(StatusCode::TOO_MANY_REQUESTS, "Slow down", "Too many sign-ins in a minute. Try again shortly.");
     }
     let Some(state) = query.state.filter(|s| well_formed(s)) else {
-        return page(StatusCode::BAD_REQUEST, "That link is broken", "Start the sign-in again from Glyph.");
+        return page(StatusCode::BAD_REQUEST, "That link is broken", "Start the sign-in again from Ghost.md.");
     };
     // Decided and the lock let go before the network call below: a guard held
     // across an await would make this handler unsendable.
@@ -222,7 +222,7 @@ async fn callback(State(notion): State<Arc<Notion>>, ConnectInfo(peer): ConnectI
         })
         .unwrap_or(false);
     if !known {
-        return page(StatusCode::GONE, "This sign-in has expired", "Start it again from Glyph.");
+        return page(StatusCode::GONE, "This sign-in has expired", "Start it again from Ghost.md.");
     }
 
     let outcome = match (query.error, query.code) {
@@ -244,7 +244,7 @@ async fn callback(State(notion): State<Arc<Notion>>, ConnectInfo(peer): ConnectI
     }
     eprintln!("notion callback {}", if succeeded { "ok" } else { "failed" });
     if succeeded {
-        page(StatusCode::OK, "Connected", &format!("Glyph can use {workspace} now. Go back to Glyph to choose a board."))
+        page(StatusCode::OK, "Connected", &format!("Ghost.md can use {workspace} now. Go back to Ghost.md to choose a board."))
     } else {
         page(StatusCode::OK, "Not connected", &reason.unwrap_or_else(|| "Sign-in didn't finish.".into()))
     }
@@ -257,7 +257,7 @@ struct ClaimRequest {
 }
 
 async fn claim(State(notion): State<Arc<Notion>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(request): Json<ClaimRequest>) -> Response {
-    // No bearer token: the web build Glyph's phone runs has none to send (the
+    // No bearer token: the web build Ghost.md's phone runs has none to send (the
     // public bundle is built without it), and none is needed. Only the phone
     // that started this sign-in has the verifier that answers its challenge.
     if !notion.allowed(peer, &headers) {

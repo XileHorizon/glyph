@@ -5,19 +5,30 @@ edition = "2021"
 publish = false
 
 [dependencies]
-axum = "0.8"
+# `ws` for live sync's relay (src/live.rs, docs/LIVE.md): a WebSocket per device, passing sealed edits between an
+# account's own devices.
+axum = { version = "0.8", features = ["ws"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
 tower-http = { version = "0.6", features = ["cors"] }
 # rustls rather than native-tls: the binary is cross-compiled with zig and has
 # to run on a box whose OpenSSL this Mac never sees. It only ever speaks plain
 # HTTP to a loopback Ollama today, but a TLS stack that links against nothing
 # is the one that cannot break on an apt upgrade later.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# `stream` for src/mcp_proxy.rs, which passes the hosted MCP server's answers on as they come.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Notion sign-in (src/notion.rs): the PKCE check on claim, and base64url for it.
 sha2 = "0.10"
 base64 = "0.22"
+# Accounts and sync (src/accounts.rs, src/sync.rs, docs/SYNC.md), as AttackFM's registry does them: one SQLite file
+# (bundled, so the cross-compiled binary links against nothing on the box), Argon2 for the login secrets, and
+# Ed25519 for the session tokens and device keys.
+rusqlite = { version = "0.32", features = ["bundled"] }
+argon2 = { version = "0.5", features = ["std"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "rand_core"] }
+rand = "0.8"
 
 [profile.release]
 lto = true
@@ -25,3 +36,6 @@ strip = true
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
+# A real WebSocket client for the relay's tests, the same version axum's `ws` speaks: the in-memory router the other
+# tests drive cannot upgrade a connection.
+tokio-tungstenite = "0.29"

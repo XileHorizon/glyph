@@ -1,0 +1,364 @@
+/*
+ * The review after a recording: steps at the top, the thinking in a quiet
+ * pane, then the findings, then Commit. The recorder's own frame (a small top
+ * line, the content, a footer of a word and a pill), so it reads as the
+ * recording's last step rather than a new place.
+ */
+.screen {
+  display: flex;
+  flex-direction: column;
+  block-size: 100dvh;
+  background: var(--glacier-bg);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+}
+
+.top {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--glacier-space-4);
+  min-block-size: var(--glacier-space-10);
+  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-3));
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.top > button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.body {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  padding-block: var(--glacier-space-4);
+  display: grid;
+  align-content: start;
+  gap: var(--glacier-space-5);
+}
+
+/* ---- the steps ------------------------------------------------------------------------ */
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-3);
+}
+
+.stepText {
+  flex: 1;
+  min-inline-size: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.stepName {
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.stepDetail {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.stepAction {
+  flex: none;
+}
+
+/* A ring waiting, a ring turning, a filled dot done, a dash skipped. */
+.mark {
+  flex: none;
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  margin-block-start: 0.25rem;
+  border-radius: 50%;
+  border: 2px solid var(--app-ink-4, var(--glacier-border-strong));
+}
+
+.mark[data-state='running'] {
+  border-color: var(--app-ink, var(--glacier-text));
+  border-inline-end-color: transparent;
+  animation: turn 900ms linear infinite;
+}
+
+.mark[data-state='done'] {
+  border-color: var(--app-ink, var(--glacier-text));
+  background: var(--app-ink, var(--glacier-text));
+}
+
+.mark[data-state='skipped'] {
+  border: none;
+  border-radius: 1px;
+  block-size: 2px;
+  margin-block-start: 0.65rem;
+  background: var(--app-ink-4, var(--glacier-border-strong));
+}
+
+.mark[data-state='failed'] {
+  border-color: var(--glacier-danger, #c0392b);
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- the thinking ---------------------------------------------------------------------- */
+
+.thought {
+  display: grid;
+  gap: var(--glacier-space-2);
+}
+
+.thoughtHead {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  justify-self: start;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  cursor: pointer;
+}
+
+.chevron {
+  inline-size: 0.45rem;
+  block-size: 0.45rem;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 160ms ease-out;
+}
+
+.chevron[data-open] {
+  transform: rotate(45deg);
+}
+
+/* The model's own words, raw: small, monospaced, following the newest line. */
+.thoughtText {
+  max-block-size: 42dvh;
+  overflow-y: auto;
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2, var(--glacier-surface));
+  font-family: var(--glacier-font-mono, ui-monospace, 'SF Mono', Menlo, monospace);
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+.thoughtText[data-live] {
+  mask-image: linear-gradient(to bottom, transparent, black 18%);
+}
+
+/* ---- the findings ---------------------------------------------------------------------- */
+
+.findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+.finding {
+  display: grid;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-4);
+  border: 1.5px solid var(--app-ink-4, var(--glacier-border-subtle));
+  border-radius: var(--glacier-radius-lg);
+  opacity: 0.62;
+  transition: opacity 160ms ease-out, border-color 160ms ease-out;
+}
+
+.finding[data-accepted] {
+  border-color: var(--app-ink, var(--glacier-text));
+  opacity: 1;
+}
+
+.findingHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+}
+
+.check,
+.where {
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.where {
+  font-weight: var(--glacier-font-weight-medium);
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.what {
+  margin: 0;
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: 1.25;
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.why {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.change {
+  display: grid;
+  gap: var(--glacier-space-1);
+  padding-inline-start: var(--glacier-space-3);
+  border-inline-start: 2px solid var(--app-ink-4, var(--glacier-border-subtle));
+}
+
+.before,
+.after,
+.addLabel {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.before {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  text-decoration: line-through;
+}
+
+.addLabel {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.after {
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.editor {
+  inline-size: 100%;
+  padding: var(--glacier-space-2);
+  border: 1.5px solid var(--app-ink, var(--glacier-text));
+  border-radius: var(--glacier-radius-md, 8px);
+  background: transparent;
+  font: inherit;
+  color: var(--app-ink, var(--glacier-text));
+  resize: vertical;
+}
+
+.findingActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+}
+
+.edit {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/* Skip and Use this, side by side: the chosen one is ink, the other an outline. */
+.answers {
+  display: inline-flex;
+  gap: var(--glacier-space-2);
+}
+
+.answer {
+  min-block-size: 2.5rem;
+  padding: 0 var(--glacier-space-4);
+  border: 1.5px solid var(--app-ink-3, var(--glacier-border-strong));
+  border-radius: var(--glacier-radius-full);
+  background: transparent;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.answer[aria-pressed='true'] {
+  border-color: var(--app-ink, var(--glacier-text));
+  background: var(--app-ink, var(--glacier-text));
+  color: var(--app-paper, var(--glacier-bg));
+}
+
+.answer:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.clean {
+  margin: 0;
+  font-size: var(--glacier-font-size-lg);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+/* ---- the footer ------------------------------------------------------------------------ */
+
+.footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-4);
+  padding-block: var(--glacier-space-2) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-4));
+}
+
+.count {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.solo {
+  margin-inline-start: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark[data-state='running'] {
+    animation: none;
+  }
+}
+
+/* While the model thinks: the ghost spinning in thought, over the steps. */
+.workingGhost {
+  margin-block-end: var(--glacier-space-4);
+}

@@ -72,9 +72,25 @@ All optional, all in `types.ts`:
 | `itemTargets` | A word that can end an item command's note name ("new task for AttackFM **in Notion**") | `word`, `afterAdd(noteId, lines, ctx)` |
 | `tips` | Suggestions in a pause while recording | `(recentTitle) => Tip[]` |
 | `formatContext` | Background the formatter hands the model with a note | `for(noteId)`, `version(noteId)` |
+| `suggest` | A quiet word at the end of a line the plugin could act on, tapped to do it (the Notion word after an unsent to-do) | `(noteId, body) => Suggestion[]`, each `line`, `label`, `busyLabel`, `run(editing)` |
+| `marks` | Read-back for the links a plugin writes: a pill on the item, a card on tap, and the actions (`done`, `reopen`) that make a tick sync both ways | `peek`, `want`, `open`, `reads?`, `actions?` |
+| `formats` | An inline formatting of its own in every note (the seven built in, all in one plugin: `plugins/marks/`): the words between two runs of its delimiter, drawn its way, and a word for it in the Style page of the press-and-hold menu (the Spoiler plugin's `\|\|secret\|\|`, in smoke) | `InlineFormat[]`, each `name` (a capitalised node name), `delimiter` (one to three of a character Markdown doesn't use), `look` (`{ kind: 'wisp' }` or `{ kind: 'style', css }`) |
 
-`NoteEditing` (for note actions and the swipe) changes the note on screen through its editor, so each change is
-one undo step and saves like typing. `CaptureContext` (for voice commands) can:
+`NoteEditing` (for note actions, the swipe and suggestions) changes the note on screen through its editor, so each
+change is one undo step and saves like typing.
+
+**Local only.** While the person has Local only on (Settings > Formatting), every plugin whose manifest
+declares the `network` permission is off, whatever its switch says, and the registry tells its listeners
+when that changes. A plugin that can do part of its work without the network should split that part
+into a plugin without the permission, or it goes dark with the rest.
+
+**Linking an item.** There is one form for a list item linked to something outside Glyph, and every plugin
+writes it through `core/itemLinks.ts` `linkedLine(line, url, name)`: the words stay as they are and the item
+ends with a mark, a link whose words are the plugin's lowercase name - `- [ ] Buy milk [notion](https://…)`.
+The editor draws the mark as a small solid pill with the name on it, `unsentItems` skips marked items (and
+the older whole-words form), and the formatter carries a mark through the model and puts a lost one back on
+its item. A plugin should not invent its own way of marking a line: the pill, the suggestion and the model's
+handling all key off this one shape. `CaptureContext` (for voice commands) can:
 
 - read the take's note and the last thing said
 - set the status chip

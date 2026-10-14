@@ -24,4 +24,11 @@ describe('the spoken-markdown guide', () => {
   it('applies a cue said on its own to the next sentence, as the guide promises', () => {
     expect(renderExample(CUE_ALONE)).toContain(CUE_ALONE.expect);
   });
+
+  it('shows beside each cue the mark its example really writes', () => {
+    for (const group of PHRASES) {
+      const first = group.symbol.split(' ')[0] ?? '';
+      if (first) expect(renderExample(group.example), group.title).toContain(first);
+    }
+  });
 });

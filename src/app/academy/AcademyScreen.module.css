@@ -1,0 +1,273 @@
+/*
+ * Glyph Academy (AcademyScreen.tsx): a top line with the way out and how far you are, a bar for every lesson, and
+ * one lesson card at a time - what the mark does, a line using it, and the live page to write your own on.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+  background: var(--glacier-bg);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+}
+
+.top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  min-block-size: var(--glacier-space-10);
+  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-3));
+}
+
+.back {
+  display: grid;
+  place-items: center;
+  /*
+   * The kit's scale runs 0-6, then 8, 10, 12, 16, 20, 24: `space-9` is not a smaller step, it is no rule at all, and
+   * this button was drawn the size of its own arrow rather than a target a thumb can find.
+   */
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  margin-inline-start: calc(-1 * var(--glacier-space-2));
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-full, 999px);
+  background: none;
+  color: var(--app-ink, var(--glacier-text));
+  cursor: pointer;
+}
+
+.heading {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.count {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/* A bar for every lesson, sharing the width: faint to come, ink for learned, and the one in hand standing up. */
+.bars {
+  flex: none;
+  display: flex;
+  gap: 3px;
+  margin: var(--glacier-space-4) 0 var(--glacier-space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  block-size: 4px;
+  border-radius: var(--glacier-radius-full, 999px);
+  background: var(--glacier-border-strong, color-mix(in oklch, currentColor 22%, transparent));
+  transition:
+    background-color 200ms ease-out,
+    transform 260ms cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.bar[data-done] {
+  background: var(--app-ink, var(--glacier-text));
+}
+
+.bar[data-now] {
+  background: var(--glacier-accent-solid, var(--glacier-text));
+  transform: scaleY(2);
+}
+
+.page {
+  flex: 1 1 auto;
+  padding-block: var(--glacier-space-4) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-8));
+}
+
+/*
+ * One card, as wide as the page on a phone and never wider than a comfortable line of prose. Every box down to the
+ * lines of markdown inside it is told it may be narrower than its content (`min-inline-size: 0`), or one long example
+ * - a link with its address in it - stretches the row, the card and the page with it, and the words run off the
+ * screen.
+ */
+.card {
+  display: grid;
+  gap: var(--glacier-space-3);
+  min-inline-size: 0;
+  max-inline-size: 42rem;
+  margin-inline: auto;
+}
+
+.chapter {
+  margin: 0;
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.title {
+  margin: 0;
+  font-size: var(--glacier-font-size-xl);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.teach {
+  margin: 0;
+  color: var(--app-ink-2, var(--glacier-text));
+  line-height: var(--glacier-leading-lg);
+}
+
+/* The line to look at: the characters themselves, in the typewriter face, with a way to have them written for you. */
+.example {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+  min-inline-size: 0;
+  padding: var(--glacier-space-3);
+  border-radius: var(--glacier-radius-md, 0.5rem);
+  background: color-mix(in oklch, currentColor 6%, transparent);
+}
+
+.exampleText {
+  margin: 0;
+  min-inline-size: 0;
+  overflow-x: auto;
+  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-md);
+  color: var(--app-ink, var(--glacier-text));
+  white-space: pre;
+}
+
+.task {
+  margin: 0;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+  min-block-size: var(--glacier-space-8);
+}
+
+.praise {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  color: var(--app-ink, var(--glacier-text));
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.hint {
+  margin: 0;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  font-size: var(--glacier-font-size-sm);
+}
+
+/* Anything that is not the next step: a word to press, with a thumb's worth of room round it. */
+/*
+ * The Academy's buttons are the app's buttons: `.app-pill` for the one loud
+ * action on the screen and `.app-word` for the quiet ones (app/ink.css,
+ * app/app.css). They were written again here, a size smaller than every other
+ * screen's (Matt: "the next button in the Glyph Academy looks small and not
+ * the right glacierUI button"), which is exactly what a shared button exists
+ * to prevent. All that is left here is the icon a word sometimes carries.
+ */
+.wordRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  white-space: nowrap;
+}
+
+/* The summary: every lesson, ticked or not, and a press takes it again. */
+.chapterBlock {
+  display: grid;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+}
+
+.chapterName {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.list {
+  display: grid;
+  gap: 1px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list > li {
+  min-inline-size: 0;
+}
+
+.again {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  min-block-size: var(--glacier-space-10);
+  padding-inline: var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-md, 0.5rem);
+  background: none;
+  color: var(--app-ink, var(--glacier-text));
+  text-align: start;
+  cursor: pointer;
+}
+
+.again:hover {
+  background: color-mix(in oklch, currentColor 6%, transparent);
+}
+
+.againTick {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.4em;
+  block-size: 1.4em;
+  border-radius: var(--glacier-radius-full, 999px);
+  background: color-mix(in oklch, currentColor 10%, transparent);
+  color: transparent;
+}
+
+.againTick[data-done] {
+  background: var(--app-ink, var(--glacier-text));
+  color: var(--app-paper, var(--glacier-bg));
+}
+
+.againName {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.againMark {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 45%;
+  overflow: hidden;
+  font-family: var(--glacier-font-mono, ui-monospace, monospace);
+  font-size: var(--glacier-font-size-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}

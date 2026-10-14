@@ -1,0 +1,2269 @@
+{
+  "version": 1,
+  "voiceNote": "One plain narrator voice at ordinary speed. The number after each line is the silence after it, in seconds.",
+  "fixtures": {
+    "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+    "Work": "# Work\n\n- [ ] Email Jo\n",
+    "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+    "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+    "Glyph": "# Glyph\n\nIdeas.\n",
+    "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n"
+  },
+  "tests": [
+    {
+      "file": "001-title-cue",
+      "group": "Titles and sections",
+      "tests": "“Title:” names the note.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Title: weekend trip.",
+          1.2
+        ],
+        [
+          "We leave on Friday after work.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "# Weekend trip\n\nWe leave on Friday after work."
+      },
+      "id": "001"
+    },
+    {
+      "file": "002-call-this-note",
+      "group": "Titles and sections",
+      "tests": "“Call this note” names the note.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Call this note: garden plans.",
+          1.2
+        ],
+        [
+          "The roses need pruning before the frost.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "# Garden plans\n\nThe roses need pruning before the frost."
+      },
+      "id": "002"
+    },
+    {
+      "file": "003-short-first-sentence-title",
+      "group": "Titles and sections",
+      "tests": "A short first sentence becomes the title.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Grocery run.",
+          1.2
+        ],
+        [
+          "We are out of coffee again this morning.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "# Grocery run\n\nWe are out of coffee again this morning."
+      },
+      "id": "003"
+    },
+    {
+      "file": "004-question-is-not-a-title",
+      "group": "Titles and sections",
+      "tests": "A question first stays a sentence.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Did anyone book the cabin?",
+          1.0
+        ],
+        [
+          "I think Sam did it last week.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Did anyone book the cabin? I think Sam did it last week."
+      },
+      "id": "004"
+    },
+    {
+      "file": "005-heading-cue",
+      "group": "Titles and sections",
+      "tests": "“Heading:” starts a section.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We spent the whole call going over the house with Sam.",
+          1.0
+        ],
+        [
+          "Heading: the budget.",
+          1.2
+        ],
+        [
+          "We agreed on four thousand for the kitchen.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "We spent the whole call going over the house with Sam.\n\n## The budget\n\nWe agreed on four thousand for the kitchen."
+      },
+      "id": "005"
+    },
+    {
+      "file": "006-new-section-cue",
+      "group": "Titles and sections",
+      "tests": "“New section:” starts a section.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We spent the whole call going over the house with Sam.",
+          1.0
+        ],
+        [
+          "New section: the garden.",
+          1.2
+        ],
+        [
+          "The fence needs painting before spring.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "We spent the whole call going over the house with Sam.\n\n## The garden\n\nThe fence needs painting before spring."
+      },
+      "id": "006"
+    },
+    {
+      "file": "007-subheading-cue",
+      "group": "Titles and sections",
+      "tests": "“Subheading:” starts a smaller section.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Heading: packing.",
+          1.2
+        ],
+        [
+          "Subheading: the kitchen.",
+          1.2
+        ],
+        [
+          "Pots, pans and the good knife.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "## Packing\n\n### The kitchen\n\nPots"
+        ]
+      },
+      "id": "007"
+    },
+    {
+      "file": "008-heading-said-alone",
+      "group": "Titles and sections",
+      "tests": "A cue said on its own applies to the next sentence.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We spent the whole call going over the house with Sam.",
+          1.0
+        ],
+        [
+          "Heading.",
+          1.2
+        ],
+        [
+          "The numbers.",
+          1.2
+        ],
+        [
+          "They look fine for now.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "We spent the whole call going over the house with Sam.\n\n## The numbers\n\nThey look fine for now."
+      },
+      "id": "008"
+    },
+    {
+      "file": "009-new-paragraph-cue",
+      "group": "Titles and sections",
+      "tests": "“New paragraph” breaks the paragraph.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The kitchen needs work before we list the house.",
+          1.0
+        ],
+        [
+          "New paragraph.",
+          1.0
+        ],
+        [
+          "The garden is fine as it is.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The kitchen needs work before we list the house.\n\nThe garden is fine as it is."
+      },
+      "id": "009"
+    },
+    {
+      "file": "010-long-pause-paragraph",
+      "group": "Titles and sections",
+      "tests": "A pause over two seconds breaks the paragraph.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The kitchen needs work before we list the house.",
+          2.8
+        ],
+        [
+          "The garden is fine as it is.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The kitchen needs work before we list the house.\n\nThe garden is fine as it is."
+      },
+      "id": "010"
+    },
+    {
+      "file": "011-short-pause-same-paragraph",
+      "group": "Titles and sections",
+      "tests": "A breath keeps one paragraph.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The kitchen needs work before we list the house.",
+          1.0
+        ],
+        [
+          "The garden is fine as it is.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The kitchen needs work before we list the house. The garden is fine as it is."
+      },
+      "id": "011"
+    },
+    {
+      "file": "012-bullet-cues",
+      "group": "Lists",
+      "tests": "“Bullet point”, “next point” and “new item” make bullets.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Things to check at the cabin before we leave.",
+          1.0
+        ],
+        [
+          "Bullet point: the heating.",
+          0.9
+        ],
+        [
+          "Next point: the water pressure.",
+          0.9
+        ],
+        [
+          "New item: the smoke alarm.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Things to check at the cabin before we leave.\n\n- The heating\n- The water pressure\n- The smoke alarm"
+      },
+      "id": "012"
+    },
+    {
+      "file": "013-bullet-said-alone",
+      "group": "Lists",
+      "tests": "“Bullet point” alone, then the item.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Shopping for the weekend is below this line.",
+          1.0
+        ],
+        [
+          "Bullet point.",
+          1.2
+        ],
+        [
+          "Oat milk.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Shopping for the weekend is below this line.\n\n- Oat milk"
+      },
+      "id": "013"
+    },
+    {
+      "file": "014-list-in-one-breath",
+      "group": "Lists",
+      "tests": "A spoken list after “need”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "For the drive we need snacks, water, a charger and the good playlist.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "For the drive we need:\n- snacks\n- water\n- a charger\n- the good playlist"
+      },
+      "id": "014"
+    },
+    {
+      "file": "015-list-after-a-colon",
+      "group": "Lists",
+      "tests": "A list after a spoken colon.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We sorted out the camping gear this morning.",
+          1.0
+        ],
+        [
+          "Pack these: the tent, the stove and the lantern.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "match": "^We sorted out the camping gear this morning\\.\\n\\nPack these:?\\n- [Tt]he tent\\n- [Tt]he stove\\n- [Tt]he lantern$"
+      },
+      "id": "015"
+    },
+    {
+      "file": "016-commas-stay-a-sentence",
+      "group": "Lists",
+      "tests": "Commas without a list word stay a sentence.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We went to the store, bought some food, and came home.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "We went to the store, bought some food, and came home."
+      },
+      "id": "016"
+    },
+    {
+      "file": "017-number-cues",
+      "group": "Lists",
+      "tests": "“Number one”, “number two” make a numbered list.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The packing order for the morning is below.",
+          1.0
+        ],
+        [
+          "Number one: passports.",
+          0.9
+        ],
+        [
+          "Number two: chargers.",
+          0.9
+        ],
+        [
+          "Number three: snacks.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The packing order for the morning is below.\n\n1. Passports\n2. Chargers\n3. Snacks"
+      },
+      "id": "017"
+    },
+    {
+      "file": "018-number-one-priority-stays",
+      "group": "Lists",
+      "tests": "“Number one” without a pause stays a sentence.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Honestly our number one priority this weekend is sleep.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Honestly our number one priority this weekend is sleep."
+      },
+      "id": "018"
+    },
+    {
+      "file": "019-steps-in-order",
+      "group": "Lists",
+      "tests": "“First”, “second”, “finally” make numbered steps.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Here is how to reset the router when it hangs.",
+          1.0
+        ],
+        [
+          "First, unplug it.",
+          0.9
+        ],
+        [
+          "Second, wait a moment.",
+          0.9
+        ],
+        [
+          "Finally, plug it back in.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Here is how to reset the router when it hangs.\n\n1. Unplug it\n2. Wait a moment\n3. Plug it back in"
+      },
+      "id": "019"
+    },
+    {
+      "file": "020-then-alone-stays",
+      "group": "Lists",
+      "tests": "“Then” without “first” stays a sentence.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We ate dinner at the pub, then we watched a film.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "We ate dinner at the pub, then we watched a film."
+      },
+      "id": "020"
+    },
+    {
+      "file": "021-announced-list",
+      "group": "Lists",
+      "tests": "An announced list takes the short sentences after it.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Here's my shopping list.",
+          1.0
+        ],
+        [
+          "Eggs.",
+          0.8
+        ],
+        [
+          "Bread.",
+          0.8
+        ],
+        [
+          "Coffee beans.",
+          1.0
+        ],
+        [
+          "That is everything I can think of for now, thanks.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "# Here's my shopping list\n\n- Eggs\n- Bread\n- Coffee beans\n\nThat is everything I can think of for now, thanks."
+      },
+      "id": "021"
+    },
+    {
+      "file": "022-announced-numbered-list",
+      "group": "Lists",
+      "tests": "“Make a numbered list” numbers the items.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Weekend chores.",
+          1.0
+        ],
+        [
+          "Make a numbered list.",
+          1.0
+        ],
+        [
+          "Laundry.",
+          0.8
+        ],
+        [
+          "Groceries.",
+          0.8
+        ],
+        [
+          "Mow the lawn.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "# Weekend chores\n\nMake a numbered list.\n\n1. Laundry\n2. Groceries\n3. Mow the lawn"
+      },
+      "id": "022"
+    },
+    {
+      "file": "023-item-phrases",
+      "group": "Lists",
+      "tests": "“The next item is” and friends make items.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Packing for the coast.",
+          1.0
+        ],
+        [
+          "The first item is sunscreen.",
+          0.9
+        ],
+        [
+          "The next item is a towel.",
+          0.9
+        ],
+        [
+          "And the last thing we need on our list is a good book.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "# Packing for the coast\n\n- Sunscreen\n- A towel\n- A good book"
+      },
+      "id": "023"
+    },
+    {
+      "file": "024-item-phrase-split-by-a-breath",
+      "group": "Lists",
+      "tests": "“The next item is”, a breath, then the item.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Road trip snacks.",
+          1.0
+        ],
+        [
+          "The next item is.",
+          1.0
+        ],
+        [
+          "Pretzels.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "# Road trip snacks\n\n- Pretzels"
+      },
+      "id": "024"
+    },
+    {
+      "file": "025-the-thing-is-stays",
+      "group": "Lists",
+      "tests": "“The thing is” stays a sentence.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The thing is, I am tired of driving every weekend.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The thing is, I am tired of driving every weekend."
+      },
+      "id": "025"
+    },
+    {
+      "file": "026-todo-phrases",
+      "group": "To-dos and blocks",
+      "tests": "Remember to, I need to, don't forget to, remind me to.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Before Saturday we have a lot to sort out.",
+          1.0
+        ],
+        [
+          "Remember to book the cabin.",
+          0.9
+        ],
+        [
+          "I need to call Sam about the keys.",
+          0.9
+        ],
+        [
+          "Don't forget to fill the car up.",
+          0.9
+        ],
+        [
+          "Remind me to pack the first aid kit.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Before Saturday we have a lot to sort out.\n\n- [ ] Book the cabin\n- [ ] Call Sam about the keys\n- [ ] Fill the car up\n- [ ] Pack the first aid kit"
+      },
+      "id": "026"
+    },
+    {
+      "file": "027-checkbox-todo-task-cues",
+      "group": "To-dos and blocks",
+      "tests": "Check box, to-do and task.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Before Saturday we have a lot to sort out.",
+          1.0
+        ],
+        [
+          "Check box: call the plumber.",
+          0.9
+        ],
+        [
+          "To-do: buy ice.",
+          0.9
+        ],
+        [
+          "Task: charge the lantern.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Before Saturday we have a lot to sort out.\n\n- [ ] Call the plumber\n- [ ] Buy ice\n- [ ] Charge the lantern"
+      },
+      "id": "027"
+    },
+    {
+      "file": "028-quote",
+      "group": "To-dos and blocks",
+      "tests": "“Quote:” makes a quote.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "This is what the landlord said at the end of the call.",
+          1.0
+        ],
+        [
+          "Quote: the deposit comes back in full.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "This is what the landlord said at the end of the call.\n\n> The deposit comes back in full."
+      },
+      "id": "028"
+    },
+    {
+      "file": "029-important-and-key-point",
+      "group": "To-dos and blocks",
+      "tests": "“Important:” and “key point:” stand out, each on its own line.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "These are my thoughts on the offer from Friday.",
+          1.0
+        ],
+        [
+          "Important: they need an answer by Monday.",
+          1.0
+        ],
+        [
+          "Key point: the price includes parking.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "These are my thoughts on the offer from Friday.\n\n**Important:** They need an answer by Monday.\n\n**Key point:** The price includes parking."
+      },
+      "id": "029"
+    },
+    {
+      "file": "030-divider",
+      "group": "To-dos and blocks",
+      "tests": "“Divider” draws a line.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "That covers everything we planned for the morning.",
+          1.0
+        ],
+        [
+          "Divider.",
+          1.0
+        ],
+        [
+          "The afternoon is completely free.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "That covers everything we planned for the morning.\n\n---\n\nThe afternoon is completely free."
+      },
+      "id": "030"
+    },
+    {
+      "file": "031-callout",
+      "group": "To-dos and blocks",
+      "tests": "“Info box:” (or “callout:”) makes a callout.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Before you arrive at the cabin, please read this.",
+          1.0
+        ],
+        [
+          "Info box: the gate sticks, so lift it first.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "match": "^Before you arrive at the cabin, please read this\\.\\n\\n> \\[!NOTE\\]\\n> The gate sticks"
+      },
+      "id": "031"
+    },
+    {
+      "file": "032-hidden-line",
+      "group": "To-dos and blocks",
+      "tests": "“Hidden line:” hides a line in smoke.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Here is the answer to the riddle from the party.",
+          1.0
+        ],
+        [
+          "Hidden line: it was the butler.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Here is the answer to the riddle from the party.\n\n>| It was the butler."
+      },
+      "id": "032"
+    },
+    {
+      "file": "033-bold",
+      "group": "Marks inside a sentence",
+      "tests": "“Bold … end bold”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The deadline is bold Friday at noon end bold, not Monday.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The deadline is **Friday at noon**, not Monday."
+      },
+      "id": "033"
+    },
+    {
+      "file": "034-italic",
+      "group": "Marks inside a sentence",
+      "tests": "“Italic … end italic”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The owner said the hot tub is italic strictly off limits end italic after ten.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "_strictly off limits_"
+        ],
+        "lacks": [
+          "italic"
+        ]
+      },
+      "id": "034"
+    },
+    {
+      "file": "035-bold-closed-with-and",
+      "group": "Marks inside a sentence",
+      "tests": "“And bold” at the end still closes.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The deadline for the balance is bold Friday at noon and bold.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The deadline for the balance is **Friday at noon**."
+      },
+      "id": "035"
+    },
+    {
+      "file": "036-bold-as-a-word-stays",
+      "group": "Marks inside a sentence",
+      "tests": "“Bold” as a word stays a word.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "It was a bold move and a bold plan.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "It was a bold move and a bold plan."
+      },
+      "id": "036"
+    },
+    {
+      "file": "037-spoiler",
+      "group": "Marks inside a sentence",
+      "tests": "“Spoiler … end spoiler”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The gate code is spoiler four four one seven end spoiler.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "match": "\\|\\|[^|]+\\|\\|",
+        "lacks": [
+          "spoiler"
+        ]
+      },
+      "id": "037"
+    },
+    {
+      "file": "038-highlight",
+      "group": "Marks inside a sentence",
+      "tests": "“Highlight … end highlight”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Remember that highlight the wifi password is on the fridge end highlight.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "match": "==the (?:wifi|Wi-Fi|WiFi) password is on the fridge==",
+        "lacks": [
+          "highlight"
+        ]
+      },
+      "id": "038"
+    },
+    {
+      "file": "039-aside",
+      "group": "Marks inside a sentence",
+      "tests": "“Aside … end aside”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We booked the cabin, aside I still prefer the other place end aside.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "%%I still prefer the other place%%"
+        ],
+        "lacks": [
+          "aside",
+          "a side"
+        ]
+      },
+      "id": "039"
+    },
+    {
+      "file": "040-unsure",
+      "group": "Marks inside a sentence",
+      "tests": "“Unsure … end unsure”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The stove is unsure gas end unsure, it might be electric.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "??gas??"
+        ],
+        "lacks": [
+          "unsure",
+          "# "
+        ]
+      },
+      "id": "040"
+    },
+    {
+      "file": "041-shout",
+      "group": "Marks inside a sentence",
+      "tests": "“Shout … end shout”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The first rule is shout no shoes on the rug end shout.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The first rule is ^^no shoes on the rug^^."
+      },
+      "id": "041"
+    },
+    {
+      "file": "042-added",
+      "group": "Marks inside a sentence",
+      "tests": "“Added … end added”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Our plan for Sunday breakfast is added pancakes end added.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Our plan for Sunday breakfast is ++pancakes++."
+      },
+      "id": "042"
+    },
+    {
+      "file": "043-strike",
+      "group": "Marks inside a sentence",
+      "tests": "“Strike … end strike”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The meeting moved from strike Tuesday end strike to Wednesday.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "~~Tuesday~~"
+        ],
+        "lacks": [
+          "strike"
+        ]
+      },
+      "id": "043"
+    },
+    {
+      "file": "044-code",
+      "group": "Marks inside a sentence",
+      "tests": "“Code … end code”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Before you push, run code npm run build end code on your machine.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "`npm run build`"
+        ],
+        "lacks": [
+          "code"
+        ]
+      },
+      "id": "044"
+    },
+    {
+      "file": "045-tags",
+      "group": "Marks inside a sentence",
+      "tests": "“Hashtag” makes a tag.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Shopping and errands for the week ahead.",
+          1.0
+        ],
+        [
+          "Bullet point: book the ferry hashtag travel hashtag urgent.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Shopping and errands for the week ahead.\n\n- Book the ferry #travel #urgent"
+      },
+      "id": "045"
+    },
+    {
+      "file": "046-counter",
+      "group": "Marks inside a sentence",
+      "tests": "“Counter three of eight” makes a counter.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "My daily goals for this week are below.",
+          1.0
+        ],
+        [
+          "Bullet point: drink water, counter zero of eight.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "My daily goals for this week are below.\n\n- Drink water [0/8]"
+      },
+      "id": "046"
+    },
+    {
+      "file": "047-choices",
+      "group": "Marks inside a sentence",
+      "tests": "“Option:” and “picked option:” make choices.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Where should we stay?",
+          1.0
+        ],
+        [
+          "Option: tent.",
+          0.9
+        ],
+        [
+          "Option: cabin.",
+          0.9
+        ],
+        [
+          "Picked option: hotel.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Where should we stay?\n\n- ( ) Tent\n- ( ) Cabin\n- (x) Hotel"
+      },
+      "id": "047"
+    },
+    {
+      "file": "048-sum",
+      "group": "Marks inside a sentence",
+      "tests": "“Calculate:” writes a sum.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The cost of the trip adds up like this.",
+          1.0
+        ],
+        [
+          "Calculate: four hundred fifty plus one hundred twenty times two.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The cost of the trip adds up like this.\n\n= 450 + 120 * 2"
+      },
+      "id": "048"
+    },
+    {
+      "file": "049-link-to-a-note",
+      "group": "Marks inside a sentence",
+      "tests": "“Note link … end link” links another note.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "The deposit details are in note link weekend trip end link.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The deposit details are in [[Weekend trip]]."
+      },
+      "id": "049"
+    },
+    {
+      "file": "050-cue-words-mid-sentence-stay",
+      "group": "Marks inside a sentence",
+      "tests": "Cue words mid-sentence stay words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We stood at the trail heading and marked a bullet point on the map.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "We stood at the trail heading and marked a bullet point on the map."
+      },
+      "id": "050"
+    },
+    {
+      "file": "051-add-to-a-note",
+      "group": "Commands",
+      "tests": "“Glyph, add … to <note>”, then yes.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add oat milk to groceries.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n"
+        }
+      },
+      "id": "051"
+    },
+    {
+      "file": "052-add-a-list-item",
+      "group": "Commands",
+      "tests": "“Glyph, add a list item to <note>”, the item, then yes.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add a list item to groceries.",
+          1.2
+        ],
+        [
+          "Coffee beans.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Coffee beans\n"
+        }
+      },
+      "id": "052"
+    },
+    {
+      "file": "053-add-several-tasks",
+      "group": "Commands",
+      "tests": "“Glyph, add tasks to <note>”, several, a pause, then yes.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add tasks to work.",
+          1.2
+        ],
+        [
+          "Call the bank.",
+          0.8
+        ],
+        [
+          "Email the landlord.",
+          3.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call the bank\n- [ ] Email the landlord\n"
+        }
+      },
+      "id": "053"
+    },
+    {
+      "file": "054-put-on-a-list",
+      "group": "Commands",
+      "tests": "“Glyph, put … on the <note> list”.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, put call Sam on the work list.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call Sam\n"
+        }
+      },
+      "id": "054"
+    },
+    {
+      "file": "055-leave-a-note",
+      "group": "Commands",
+      "tests": "“Glyph, leave a note for <note> that says …”.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, leave a note for the weekend trip that says we need to book it by Thursday.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\nWe need to book it by Thursday.\n"
+        }
+      },
+      "id": "055"
+    },
+    {
+      "file": "056-words-before-the-keyword-stay",
+      "group": "Commands",
+      "tests": "Words before “Glyph” stay in this note.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "The heating in the cabin is fixed now, Glyph, add call the plumber to work.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The heating in the cabin is fixed now.",
+        "notes": {
+          "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call the plumber\n"
+        }
+      },
+      "id": "056"
+    },
+    {
+      "file": "057-say-no",
+      "group": "Commands",
+      "tests": "“No” cancels.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add eggs to groceries.",
+          1.5
+        ],
+        [
+          "No.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n"
+        }
+      },
+      "id": "057"
+    },
+    {
+      "file": "058-talk-on-without-answering",
+      "group": "Commands",
+      "tests": "Talking on leaves the command unanswered and the words in the note.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add eggs to groceries.",
+          1.5
+        ],
+        [
+          "The weather is lovely out there today.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "The weather is lovely out there today.",
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n"
+        }
+      },
+      "id": "058"
+    },
+    {
+      "file": "059-no-keyword-no-command",
+      "group": "Commands",
+      "tests": "Without “Glyph” it is just words.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Add oat milk to groceries before the weekend.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Add oat milk to groceries before the weekend.",
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n"
+        }
+      },
+      "id": "059"
+    },
+    {
+      "file": "060-unknown-note-gives-words-back",
+      "group": "Commands",
+      "tests": "A note that doesn't exist: the words stay here.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add eggs to the moon base.",
+          5.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "Add eggs to the moon"
+        ],
+        "lacks": [
+          "Glyph"
+        ],
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n"
+        }
+      },
+      "id": "060"
+    },
+    {
+      "file": "061-switch-to-a-note",
+      "group": "Commands",
+      "tests": "“Glyph, switch to <note>” moves the take there.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Our budget for the trip is four hundred.",
+          1.0
+        ],
+        [
+          "Glyph, switch to weekend trip.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.2
+        ],
+        [
+          "The cabin has two bedrooms.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "newNote": false,
+        "notesContain": {
+          "Weekend trip": [
+            "We leave Friday.",
+            "Our budget for the trip is four hundred.",
+            "The cabin has two bedrooms."
+          ]
+        }
+      },
+      "id": "061"
+    },
+    {
+      "file": "062-new-note",
+      "group": "Commands",
+      "tests": "“Glyph, new note” while continuing a note starts a fresh one.",
+      "setup": "continue:Weekend trip",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, new note.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.2
+        ],
+        [
+          "Title: tax receipts.",
+          1.2
+        ],
+        [
+          "Keep them in the blue folder.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "# Tax receipts\n\nKeep them in the blue folder.",
+        "notes": {
+          "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n"
+        }
+      },
+      "id": "062"
+    },
+    {
+      "file": "063-table-in-this-note",
+      "group": "Commands",
+      "tests": "“Glyph, add a table”: columns, rows, done, yes.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Here is what we packed for the trip.",
+          1.0
+        ],
+        [
+          "Glyph, add a table.",
+          1.5
+        ],
+        [
+          "Item, where, packed.",
+          1.2
+        ],
+        [
+          "Tent, garage, yes.",
+          1.2
+        ],
+        [
+          "Stove, loft, no.",
+          1.2
+        ],
+        [
+          "Done.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Here is what we packed for the trip.\n\n| Item | Where | Packed |\n| --- | --- | --- |\n| Tent | Garage | Yes |\n| Stove | Loft | No |"
+      },
+      "id": "063"
+    },
+    {
+      "file": "064-table-in-another-note",
+      "group": "Commands",
+      "tests": "A table for another note, columns said up front.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add a table to the AttackFM bug bash note with columns bug, owner and status.",
+          1.5
+        ],
+        [
+          "Login fails, Sam, open.",
+          1.2
+        ],
+        [
+          "Done.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n\n| Bug | Owner | Status |\n| --- | --- | --- |\n| Login fails | Sam | Open |\n"
+        }
+      },
+      "id": "064"
+    },
+    {
+      "file": "065-table-cancelled",
+      "group": "Commands",
+      "tests": "“Never mind” drops the table.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add a table.",
+          1.5
+        ],
+        [
+          "Never mind.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": ""
+      },
+      "id": "065"
+    },
+    {
+      "file": "066-glyph-as-a-note-name",
+      "group": "Commands",
+      "tests": "“The Glyph note” is a name, not the keyword.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Add a note to the Glyph note saying testing if this works.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "match": "^Add a note to the [Gg]lyph note saying testing if this works\\.$",
+        "notes": {
+          "Glyph": "# Glyph\n\nIdeas.\n"
+        }
+      },
+      "id": "066"
+    },
+    {
+      "file": "067-command-into-the-glyph-note",
+      "group": "Commands",
+      "tests": "The keyword, then the Glyph note by name.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add testing if this works to the Glyph note.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Glyph": "# Glyph\n\nIdeas.\n\nTesting if this works.\n"
+        }
+      },
+      "id": "067"
+    },
+    {
+      "file": "068-send-to-notion",
+      "group": "Commands",
+      "tests": "“Send that to Notion” offers the Notion task (not run in the test).",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Book the cabin for June, Glyph, send that to Notion.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "offers": [
+          "plugin:notion"
+        ]
+      },
+      "id": "068"
+    },
+    {
+      "file": "069-add-to-a-board-lane",
+      "group": "Commands",
+      "tests": "“Glyph, add … to <lane>” on a note with a board.",
+      "setup": "continue:Launch board",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, add fix the login bug to doing.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "notesMatch": {
+          "Launch board": [
+            "\\nDoing: fix-[a-z-]+, pricing-page\\n",
+            "\\n- \\[ \\] Fix [^\\n]*bug \\^fix-[a-z-]+\\n"
+          ]
+        }
+      },
+      "id": "069"
+    },
+    {
+      "file": "070-move-a-card",
+      "group": "Commands",
+      "tests": "“Glyph, move <item> to <lane>”.",
+      "setup": "continue:Launch board",
+      "prefs": {},
+      "lines": [
+        [
+          "Glyph, move pricing page to done.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "notesMatch": {
+          "Launch board": [
+            "\\nDoing:[ \\t]*\\n",
+            "\\nDone: pick-date, pricing-page\\n",
+            "\\n- \\[x\\] Pricing page \\^pricing-page\\n"
+          ]
+        }
+      },
+      "id": "070"
+    },
+    {
+      "file": "071-make-a-board",
+      "group": "Commands",
+      "tests": "“Glyph, make this a board”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Packing for the coast.",
+          1.0
+        ],
+        [
+          "Bullet point: sunscreen.",
+          0.9
+        ],
+        [
+          "Next point: towels.",
+          1.2
+        ],
+        [
+          "Glyph, make this a board.",
+          1.5
+        ],
+        [
+          "Yes.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "```board",
+          "- Sunscreen ^sunscreen",
+          "- Towels ^towels"
+        ]
+      },
+      "id": "071"
+    },
+    {
+      "file": "072-voice-memo",
+      "group": "Recording",
+      "tests": "“Voice memo … end memo” keeps the sound.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The song from the party went like this.",
+          1.0
+        ],
+        [
+          "Voice memo.",
+          1.0
+        ],
+        [
+          "La la la, la la, la la la la.",
+          1.0
+        ],
+        [
+          "End memo.",
+          1.0
+        ],
+        [
+          "Remember that tune for the wedding.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "The song from the party went like this.",
+          "](tape:",
+          "Remember that tune for the wedding."
+        ],
+        "lacks": [
+          "La la",
+          "End memo",
+          "Voice memo"
+        ]
+      },
+      "id": "072"
+    },
+    {
+      "file": "073-voice-memo-ended-by-a-pause",
+      "group": "Recording",
+      "tests": "A long pause ends a voice memo.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Voice memo.",
+          1.0
+        ],
+        [
+          "La la la, la la la.",
+          2.8
+        ],
+        [
+          "That was the tune from the party.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "](tape:",
+          "That was the tune from the party."
+        ],
+        "lacks": [
+          "La la"
+        ]
+      },
+      "id": "073"
+    },
+    {
+      "file": "074-stop-when-quiet",
+      "group": "Recording",
+      "tests": "With “Stop when I go quiet” on, silence ends the recording.",
+      "setup": "blank",
+      "prefs": {
+        "quietStop": true
+      },
+      "lines": [
+        [
+          "Just a short thought about lunch tomorrow.",
+          9.0
+        ]
+      ],
+      "expect": {
+        "note": "Just a short thought about lunch tomorrow.",
+        "stopsWithinMs": 8000
+      },
+      "id": "074"
+    },
+    {
+      "file": "075-continue-the-last-note",
+      "group": "Recording",
+      "tests": "Memo mode: a new take continues the last note; a title becomes a heading.",
+      "setup": "continue:Weekend trip",
+      "prefs": {},
+      "lines": [
+        [
+          "Title: packing.",
+          1.2
+        ],
+        [
+          "Bring the rain jackets.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "notes": {
+          "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\n## Packing\n\nBring the rain jackets."
+        }
+      },
+      "id": "075"
+    },
+    {
+      "file": "076-prose-stays-prose",
+      "group": "Recording",
+      "tests": "Ordinary talk stays ordinary, and silence adds nothing.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "So I was thinking about the trip, and honestly the first thing we should sort out is where everyone sleeps, then we can figure out food.",
+          1.0
+        ],
+        [
+          "Sam said he would bring the big cool box, which helps a lot.",
+          9.0
+        ]
+      ],
+      "expect": {
+        "note": "So I was thinking about the trip, and honestly the first thing we should sort out is where everyone sleeps, then we can figure out food. Sam said he would bring the big cool box, which helps a lot."
+      },
+      "id": "076"
+    },
+    {
+      "file": "077-bold-italic",
+      "group": "Marks inside a sentence",
+      "tests": "“Bold italic … end bold italic”.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The launch is bold italic really close end bold italic, so we should hurry.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "***really close***"
+        ],
+        "lacks": [
+          "bold",
+          "italic"
+        ]
+      },
+      "id": "077"
+    },
+    {
+      "file": "078-link-with-words",
+      "group": "Marks inside a sentence",
+      "tests": "“Link … to <address> end link” links words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The new site lives at link our app to attack dot fm slash notes end link for now.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "](https://attack.fm/no"
+        ],
+        "lacks": [
+          "end link",
+          " link "
+        ]
+      },
+      "id": "078"
+    },
+    {
+      "file": "079-bare-link",
+      "group": "Marks inside a sentence",
+      "tests": "“Link <address> end link” writes the address.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Sam sent the page, link example dot com end link, this morning.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "<https://example.com>"
+        ],
+        "lacks": [
+          "end link"
+        ]
+      },
+      "id": "079"
+    },
+    {
+      "file": "080-done-task",
+      "group": "To-dos and blocks",
+      "tests": "“Done task:” writes a done to-do.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Launch jobs for this week are below.",
+          1.0
+        ],
+        [
+          "Done task: call Sam.",
+          1.0
+        ],
+        [
+          "Check box: book the cabin.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "Launch jobs for this week are below.\n\n- [x] Call Sam\n- [ ] Book the cabin"
+      },
+      "id": "080"
+    },
+    {
+      "file": "081-anchor-and-item-link",
+      "group": "Marks inside a sentence",
+      "tests": "“Anchor … end anchor” names an item; “item link … end link” points at it.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Here is the plan for the launch this week.",
+          1.0
+        ],
+        [
+          "Check box: ship the pricing page, anchor pricing page, end anchor.",
+          1.0
+        ],
+        [
+          "The copy is waiting on item link pricing page end link.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "- [ ] Ship the pricing page ^pricing-page",
+          "[[#^pricing-page]]"
+        ],
+        "lacks": [
+          "anchor"
+        ]
+      },
+      "id": "081"
+    },
+    {
+      "file": "082-bookmark",
+      "group": "Marks inside a sentence",
+      "tests": "“Bookmark this” puts the bookmark on the line.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The deposit for the cabin is four hundred, bookmark this.",
+          1.0
+        ],
+        [
+          "We pay the rest when we arrive.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "§§"
+        ],
+        "lacks": [
+          "ookmark"
+        ]
+      },
+      "id": "082"
+    },
+    {
+      "file": "083-footnote",
+      "group": "Marks inside a sentence",
+      "tests": "“Footnote … end footnote” writes small print under the note.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The deposit is four hundred, footnote Sam said so on Friday, end footnote.",
+          1.0
+        ],
+        [
+          "We pay the rest when we arrive.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "[^1]. We pay",
+          "[^1]: Sam said so on Friday."
+        ],
+        "lacks": [
+          "ootnote"
+        ]
+      },
+      "id": "083"
+    },
+    {
+      "file": "084-subscript",
+      "group": "Marks inside a sentence",
+      "tests": "“Subscript … end subscript” lowers words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The bottle says H subscript two end subscript O, and nothing else.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "H~2~O"
+        ],
+        "lacks": [
+          "subscript"
+        ]
+      },
+      "id": "084"
+    },
+    {
+      "file": "085-superscript",
+      "group": "Marks inside a sentence",
+      "tests": "“Superscript … end superscript” raises words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The room is ten meters superscript two end superscript in total.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "^2^"
+        ],
+        "lacks": [
+          "superscript"
+        ]
+      },
+      "id": "085"
+    },
+    {
+      "file": "086-maths",
+      "group": "Marks inside a sentence",
+      "tests": "“Maths … end maths” writes a formula.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The rule holds when maths x squared plus y end maths stays small.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "$x^2 + y$"
+        ],
+        "lacks": [
+          "squared"
+        ]
+      },
+      "id": "086"
+    },
+    {
+      "file": "087-definition",
+      "group": "To-dos and blocks",
+      "tests": "“Define … as …” writes a term and its meaning.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Our cabin words for the weekend are below.",
+          1.0
+        ],
+        [
+          "Define deposit as what you pay up front.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "Deposit\n: What you pay up"
+        ]
+      },
+      "id": "087"
+    },
+    {
+      "file": "088-emoji",
+      "group": "Marks inside a sentence",
+      "tests": "“Emoji <name>” writes the emoji.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We finally shipped the app, emoji party popper.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          ":tada:"
+        ],
+        "lacks": [
+          "emoji"
+        ]
+      },
+      "id": "088"
+    },
+    {
+      "file": "089-code-block",
+      "group": "To-dos and blocks",
+      "tests": "“Code block … end code block” keeps lines of code.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "Here is how to build the app on a laptop.",
+          1.0
+        ],
+        [
+          "Code block in bash.",
+          1.0
+        ],
+        [
+          "npm install.",
+          1.0
+        ],
+        [
+          "npm run build.",
+          1.0
+        ],
+        [
+          "End code block.",
+          1.0
+        ],
+        [
+          "Then open the app folder.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "```bash\nnpm install\nnpm run build\n```"
+        ],
+        "lacks": [
+          "ode block"
+        ]
+      },
+      "id": "089"
+    },
+    {
+      "file": "090-note-on-a-mark",
+      "group": "Marks inside a sentence",
+      "tests": "“… end unsure, note … end note” adds a note to a mark.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "The deposit is unsure four hundred end unsure, note Sam said so, end note.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "??(",
+          "said so)"
+        ],
+        "lacks": [
+          "end note",
+          "nsure"
+        ]
+      },
+      "id": "090"
+    },
+    {
+      "file": "091-new-line",
+      "group": "Marks inside a sentence",
+      "tests": "“New line” breaks a line inside a paragraph.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "We wrote a short poem for the card today.",
+          1.0
+        ],
+        [
+          "Roses are red.",
+          0.8
+        ],
+        [
+          "New line.",
+          0.8
+        ],
+        [
+          "Violets are blue.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "Roses are red.  \nViolet"
+        ],
+        "lacks": [
+          "ew line"
+        ]
+      },
+      "id": "091"
+    },
+    {
+      "file": "092-cue-words-as-words",
+      "group": "Marks inside a sentence",
+      "tests": "The new cue words in ordinary sentences stay words.",
+      "setup": "blank",
+      "prefs": {},
+      "lines": [
+        [
+          "They launched a new line of shoes last spring.",
+          1.0
+        ],
+        [
+          "The link between the two teams is weak.",
+          1.0
+        ],
+        [
+          "I sent Sam an emoji to say thanks.",
+          1.0
+        ],
+        [
+          "The anchor held all night in the storm.",
+          1.0
+        ],
+        [
+          "I checked the oven twice before we left.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "They launched a new line of shoes last spring. The link between the two teams is weak. I sent Sam an emoji to say thanks. The anchor held all night in the storm. I checked the oven twice before we left."
+      },
+      "id": "092"
+    }
+  ]
+}

@@ -21,7 +21,11 @@
   overflow-y: auto;
   padding: var(--glacier-space-2) calc(var(--app-safe-right, 0px) + var(--app-gutter)) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-5)) calc(var(--app-safe-left, 0px) + var(--app-gutter));
   border-radius: var(--glacier-radius-xl, 1.5rem) var(--glacier-radius-xl, 1.5rem) 0 0;
-  background: var(--app-paper-2, var(--glacier-surface));
+  /* What is shown in the sheet, the cheat sheet among it, draws against this (guide/CheatSheet.module.css). */
+  --sheet-ground: var(--app-paper-2, var(--glacier-surface));
+  /* The space kept above what scrolls in the sheet, which a pinned strip covers (the padding's first value). */
+  --sheet-inset-top: var(--glacier-space-2);
+  background: var(--sheet-ground);
   border-block-start: 1px solid var(--glacier-border-subtle);
   animation: sheet-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }
@@ -33,13 +37,33 @@
   }
 }
 
+/*
+ * The handle: a band the width of the sheet answers the finger (editor/sheetDrag.ts), and the bar itself is drawn
+ * inside it. The bar is its own shape rather than this element's background, because a full radius on the band drew
+ * the bar as an ellipse (Matt: "handle on drawers are ovals instead of rectangles with rounded caps").
+ */
 .grip {
   display: block;
-  inline-size: 2.5rem;
+  inline-size: 100%;
+  padding-block: var(--glacier-space-3);
+  margin-block-end: var(--glacier-space-1);
+  touch-action: none;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grip::before {
+  content: '';
+  display: block;
+  inline-size: 2.75rem;
   block-size: 4px;
-  margin: 0 auto var(--glacier-space-3);
-  border-radius: var(--glacier-radius-full);
+  margin: 0 auto;
+  border-radius: 2px;
   background: var(--glacier-border-strong);
+}
+
+.grip:active {
+  cursor: grabbing;
 }
 
 .title {
@@ -99,16 +123,41 @@
   color: var(--glacier-text-muted);
 }
 
+/* A row's icon, the same as the Notion drawer's (MarkMenu.module.css): an 18 px drawing in a 30 px ring (Matt: "icons in the more need to be the same size to match the icons in the notion drawer"). */
 .icon {
   flex: none;
-  font-size: 1.25rem;
-  display: inline-flex;
+  display: grid;
+  place-items: center;
+  inline-size: 1.875rem;
+  block-size: 1.875rem;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: 18px;
+}
+
+.icon svg {
+  inline-size: 18px;
+  block-size: 18px;
 }
 
 .label {
   display: grid;
   gap: 2px;
   font-weight: var(--glacier-font-weight-medium);
+}
+
+/*
+ * The robot's rows are an ordinary group under their "AI" heading (Matt: "the AI section shouldnt look different from
+ * the background of other items in more"). It had glass of its own before; the heading is enough to set it apart.
+ */
+
+/* The mode showing now: a dot at the end of its row. */
+.chosen {
+  flex: none;
+  inline-size: 0.55rem;
+  block-size: 0.55rem;
+  border-radius: 50%;
+  background: var(--glacier-text);
 }
 
 .hint {
@@ -200,4 +249,36 @@
   .sheet {
     animation: none;
   }
+}
+
+/* How the note is shown, when the header has no room for it: two words, the chosen one filled (NoteScreen's switch). */
+.row[aria-disabled]:has(.viewChoice) {
+  justify-content: space-between;
+  color: var(--glacier-text);
+}
+
+.viewChoice {
+  display: inline-flex;
+  padding: 3px;
+  border: 1.5px solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-full);
+}
+
+.viewChoice button {
+  appearance: none;
+  min-block-size: 2rem;
+  padding: 0 var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+}
+
+.viewChoice button[data-on] {
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
 }

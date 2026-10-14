@@ -38,6 +38,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
+use crate::llm::command::{self, CommandIntent};
 use crate::llm::model::{self, LlmSpec};
 
 #[cfg(not(target_os = "ios"))]
@@ -61,11 +62,72 @@ pub struct GenerateRequest {
     pub max_tokens: u32,
     #[serde(default = "default_temperature")]
     pub temperature: f32,
+    /// Let a model that can reason do so before it answers, and stream the
+    /// reasoning with the answer (native generation 13). Absent means no:
+    /// the empty thought goes in, as every formatting pass wants.
+    #[serde(default)]
+    pub think: bool,
+    /// With `think`: the most tokens the thinking may run before it is closed
+    /// for the model and the answer begins. 0 is no limit.
+    #[serde(default)]
+    pub think_budget: u32,
 }
 
 fn default_temperature() -> f32 {
     0.3
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CommandInferenceRequest {
+    pub id: String,
+    pub utterance: String,
+    /// The titles of the person's notes, so the model can tell which one was
+    /// meant. Titles only: never a body or an id.
+    #[serde(default)]
+    pub titles: Vec<String>,
+    pub preferred_model: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum CommandInferenceResult {
+    Intent { intent: CommandIntent, model: String },
+    Unavailable { reason: String },
+}
+
+/// The command model's standing instructions. Fixed text, so the llama KV
+/// prefix snapshot after it stays valid across commands; the worked examples
+/// are the phrasings people actually say ("my note labeled Go", "a list
+/// with…"), which a 2B model follows far better than a rule alone.
+const COMMAND_SYSTEM: &str = r#"Read what someone said into a notes app and work out whether they asked for a change to their notes, and if so what they want in the end. They talk naturally: the request can come after other talk ("so I was thinking… can you make me a list"), and a request someone else was given, or talk about adding things later, is not one. Answer with JSON. Allowed actions: append to an existing note, create a new note, or none.
+- Their notes are listed first. For append, "target" should be one of those titles, allowing for misheard words.
+- append: "target" is only the note's title as spoken, without words like "my", "the", "note", "list", "labeled", "called" or "named". "content" is only what to add, in the speaker's words, without the command or the title. "placement" is "list" when they ask for a list, items, bullets or points; "tasks" for tasks, to-dos or check boxes; "bugs" for bugs or issues; "notes" for a paragraph or a note; otherwise null.
+- When they name several things to add (movies, places, groceries), placement is "list" even if they did not say "list".
+- For "list" and "tasks", separate the items in "content" with "; " and keep each item whole: "Paris, Texas; Austin, Texas".
+- create: "target" is the new note's title and "content" is its body, or null.
+- "Make a list called X and add A and B" is one request: create X with content "A; B".
+- none: destructive (delete, remove, clear) or unsupported requests; "unclear" when it is ordinary talk, not a request.
+Never invent content or a title. Output exactly one object in the required schema.
+
+Examples:
+Notes: Go, Work
+Said: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
+{"action":"append","target":"Go","content":"Parkersburg, West Virginia; Marietta, Ohio; Detroit, Michigan","placement":"list"}
+Said: put call Sam and book the flights on my work to-do list
+{"action":"append","target":"Work","content":"call Sam; book the flights","placement":"tasks"}
+Said: add to the note called Weekend trip that we should book the ferry early
+{"action":"append","target":"Weekend trip","content":"we should book the ferry early","placement":null}
+Said: add eggs milk and bread to groceries
+{"action":"append","target":"groceries","content":"eggs; milk; bread","placement":"list"}
+Said: make a new note called Packing
+{"action":"create","target":"Packing","content":null}
+Said: ok so I was watching stuff last night, can you make me a list called movies with Jaws, Alien and Heat
+{"action":"create","target":"Movies","content":"Jaws; Alien; Heat"}
+Said: I told Sam I would add the photos to the album later
+{"action":"none","reason":"unclear"}
+Said: delete everything in my Go note
+{"action":"none","reason":"destructive"}"#;
 
 /// One model of the catalogue, with whether this phone has it.
 #[derive(Debug, Clone, Serialize)]
@@ -267,6 +329,9 @@ pub async fn ai_generate(
             prompt: request.prompt,
             max_tokens: request.max_tokens,
             temperature: request.temperature,
+            think: request.think,
+            think_budget: request.think_budget,
+            grammar: None,
         };
         let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, move |progress| {
             let _ = emitter.emit("ai://progress", progress);
@@ -294,6 +359,177 @@ pub fn ai_cancel(state: State<'_, AiState>, id: String) -> bool {
     }
 }
 
+/// Interprets one wake-word-qualified utterance using only an already installed
+/// model, a native fixed prompt, and a native fixed grammar.
+#[tauri::command]
+pub async fn ai_infer_command(
+    app: AppHandle,
+    state: State<'_, AiState>,
+    request: CommandInferenceRequest,
+) -> Result<CommandInferenceResult, String> {
+    let utterance = request.utterance.trim();
+    if request.id.is_empty() || utterance.is_empty() || utterance.chars().count() > 4_000 {
+        return Ok(CommandInferenceResult::Unavailable { reason: "The command was empty or too long.".into() });
+    }
+    if let Some(reason) = command::refusal(utterance) {
+        return Ok(CommandInferenceResult::Intent { intent: CommandIntent::None { reason }, model: String::new() });
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = (app, state);
+        return Ok(CommandInferenceResult::Unavailable {
+            reason: "Instruction inference is not available on iOS; Glyph’s built-in commands still work.".into(),
+        });
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let dir = crate::capture_commands::models_dir(&app)?;
+        let preferred = model::find(&request.preferred_model)
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let fallback = model::find("qwen3.5-2b")
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let Some(spec) = preferred.or(fallback) else {
+            return Ok(CommandInferenceResult::Unavailable {
+                reason: "No compatible installed model is available for instruction commands.".into(),
+            });
+        };
+        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let cancel = Arc::new(AtomicBool::new(false));
+        {
+            let mut runs = lock(&state.runs);
+            if !runs.is_empty() {
+                return Ok(CommandInferenceResult::Unavailable { reason: "The on-device model is already working.".into() });
+            }
+            runs.insert(request.id.clone(), Arc::clone(&cancel));
+        }
+        let engine_request = Request {
+            id: request.id.clone(),
+            system: COMMAND_SYSTEM.into(),
+            context: None,
+            prompt: command::user_prompt(utterance, &request.titles),
+            // Room for a spoken list of a dozen places; a truncated answer fails closed.
+            max_tokens: 384,
+            temperature: 0.0,
+            think: false,
+            think_budget: 0,
+            grammar: Some(command::GRAMMAR),
+        };
+        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, |_| {});
+        let received = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
+        lock(&state.runs).remove(&request.id);
+        let result = received
+            .map_err(|e| format!("the command inference did not finish: {e}"))?
+            .map_err(|_| "the command inference engine went away".to_string())?;
+        match result {
+            Ok(output) => match command::parse(&output.text, output.truncated) {
+                Ok(intent) => Ok(CommandInferenceResult::Intent { intent, model: spec.id.into() }),
+                Err(reason) => Ok(CommandInferenceResult::Unavailable { reason }),
+            },
+            Err(failure) => Ok(CommandInferenceResult::Unavailable { reason: failure.to_string() }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VoiceStepRequest {
+    pub id: String,
+    /// The whole finished recording.
+    pub transcript: String,
+    /// The titles of the person's notes: never a body or an id.
+    #[serde(default)]
+    pub titles: Vec<String>,
+    /// "sort", or "plan" with the `kind` sorting found.
+    pub stage: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    pub preferred_model: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum VoiceStepResult {
+    /// The model's JSON, checked to be one whole object, and its raw text for the voice log.
+    Answer { answer: serde_json::Value, raw: String, model: String },
+    /// A destructive request: not given to the model at all.
+    Refused { reason: String },
+    Unavailable { reason: String },
+}
+
+/// One step of reading a finished recording (llm/command.rs): "sort" says what
+/// kind of thing it is, "plan" turns it into actions with real item lists.
+/// Only an installed model, a native fixed prompt and a native fixed grammar.
+#[tauri::command]
+pub async fn ai_voice_step(
+    app: AppHandle,
+    state: State<'_, AiState>,
+    request: VoiceStepRequest,
+) -> Result<VoiceStepResult, String> {
+    let transcript = request.transcript.trim();
+    if request.id.is_empty() || transcript.is_empty() || transcript.chars().count() > 4_000 {
+        return Ok(VoiceStepResult::Unavailable { reason: "The recording was empty or too long.".into() });
+    }
+    let (system, grammar, kind, max_tokens): (&str, &'static str, Option<&str>, u32) = match (request.stage.as_str(), request.kind.as_deref()) {
+        ("sort", _) => (command::SORT_SYSTEM, command::SORT_GRAMMAR, None, 16),
+        ("plan", Some(kind @ ("add" | "new" | "mixed"))) => (command::PLAN_SYSTEM, command::PLAN_GRAMMAR, Some(kind), 640),
+        _ => return Ok(VoiceStepResult::Unavailable { reason: "Unknown voice step.".into() }),
+    };
+    if command::refusal(transcript).is_some() {
+        return Ok(VoiceStepResult::Refused { reason: "Deleting, clearing or sending notes by voice is not supported.".into() });
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = (app, state, system, grammar, kind, max_tokens);
+        return Ok(VoiceStepResult::Unavailable { reason: "The on-device model is not available on iOS yet.".into() });
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let dir = crate::capture_commands::models_dir(&app)?;
+        let preferred = model::find(&request.preferred_model)
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let fallback = model::find("qwen3.5-2b")
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let Some(spec) = preferred.or(fallback) else {
+            return Ok(VoiceStepResult::Unavailable {
+                reason: "No compatible installed model is available for voice commands.".into(),
+            });
+        };
+        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let cancel = Arc::new(AtomicBool::new(false));
+        {
+            let mut runs = lock(&state.runs);
+            if !runs.is_empty() {
+                return Ok(VoiceStepResult::Unavailable { reason: "The on-device model is already working.".into() });
+            }
+            runs.insert(request.id.clone(), Arc::clone(&cancel));
+        }
+        let engine_request = Request {
+            id: request.id.clone(),
+            system: system.into(),
+            context: None,
+            prompt: command::voice_prompt(transcript, &request.titles, kind),
+            max_tokens,
+            temperature: 0.0,
+            think: false,
+            think_budget: 0,
+            grammar: Some(grammar),
+        };
+        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, |_| {});
+        let received = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
+        lock(&state.runs).remove(&request.id);
+        let result = received
+            .map_err(|e| format!("the voice step did not finish: {e}"))?
+            .map_err(|_| "the voice step engine went away".to_string())?;
+        match result {
+            Ok(output) => match command::check_answer(&output.text, output.truncated) {
+                Ok(answer) => Ok(VoiceStepResult::Answer { answer, raw: output.text, model: spec.id.into() }),
+                Err(reason) => Ok(VoiceStepResult::Unavailable { reason: format!("{reason}: {}", output.text.chars().take(300).collect::<String>()) }),
+            },
+            Err(failure) => Ok(VoiceStepResult::Unavailable { reason: failure.to_string() }),
+        }
+    }
+}
+
 #[cfg(not(target_os = "ios"))]
 impl Drop for AiState {
     fn drop(&mut self) {
@@ -312,6 +548,9 @@ mod tests {
         assert_eq!(request.max_tokens, 200);
         assert_eq!(request.temperature, 0.3);
         assert_eq!(request.context, None);
+        assert!(!request.think, "a formatting pass that says nothing about thinking gets none");
+        let thinking: GenerateRequest = serde_json::from_str(r#"{"id":"r2","model":"qwen3.5-4b","system":"Review.","prompt":"hi","maxTokens":900,"think":true}"#).unwrap();
+        assert!(thinking.think);
     }
 
     #[test]

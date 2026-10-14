@@ -17,6 +17,35 @@ const icon = (className: string | undefined, d: string) => (
   </svg>
 );
 
+/**
+ * A modern house, for the button that goes home (Matt: "change the home logo to be a modern house"; it was Glyph's
+ * own dot and dash). A single-pitch roof rising to the right with its overhang drawn past the walls, and a door.
+ *
+ * It wears the icons' 33% wash (app.css), on the house's body alone: the door and the roof's line are strokes over it,
+ * and a wash on them as well would lay a second coat over the door, the doubling the icons are kept clear of. So the
+ * wash is set on the body as a style - a `fill` attribute would lose to the stylesheet's rules, a style does not.
+ */
+export function House({ size = 20, strokeWidth = 2.1, className }: IconProps & { size?: number; strokeWidth?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      className={className}
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4.5 10.6 19.5 6v13a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2z" style={{ fill: 'color-mix(in srgb, currentColor 33%, transparent)' }} />
+      <path d="M2.5 11.2 21.5 5.4" />
+      <path d="M10 21v-5.5h4V21" />
+    </svg>
+  );
+}
+
 export function ArrowLeft({ className }: IconProps) {
   return icon(className, 'M20 12H5m6-7-7 7 7 7');
 }
@@ -61,7 +90,10 @@ export function Plus({ className }: IconProps) {
 
 /** A robot's head: an antenna, a rounded box, two eyes and a level mouth. The AI's button. */
 export function Robot({ className }: IconProps) {
-  return icon(className, 'M12 3v4M5.5 7h13a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9A1.5 1.5 0 0 1 5.5 7M9 12.5h.01M15 12.5h.01M9.5 16h5');
+  return icon(
+    className,
+    'M12 3v4M5.5 7h13a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9A1.5 1.5 0 0 1 5.5 7M9 12.5h.01M15 12.5h.01M9.5 16h5',
+  );
 }
 
 /** A pushpin: a cap, a flared body, and the needle below it. */
@@ -74,12 +106,17 @@ export function ArchiveBox({ className }: IconProps) {
   return icon(className, 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M10 12.5h4');
 }
 
-/** A box with an arrow rising out of it: take out of the archive. */
-export function Unarchive({ className }: IconProps) {
-  return icon(className, 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M12 17.5v-6M9.2 14.2 12 11.4l2.8 2.8');
-}
-
 /** A bin: lid, handle, can and two ribs. */
 export function Bin({ className }: IconProps) {
   return icon(className, 'M4 6.5h16M9.5 6.5V4h5v2.5M6.2 6.5 7.1 20h9.8l.9-13.5M10 10.5v6M14 10.5v6');
+}
+
+/** A folder: a tab at the top left, then the pocket. Where a note is filed. */
+export function Workspace({ className }: IconProps) {
+  return icon(className, 'M3.5 6.5a1 1 0 0 1 1-1h5l2 2.5h8a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z');
+}
+
+/** A board: three columns, the first two with a card in them. Turning a list into one. */
+export function Board({ className }: IconProps) {
+  return icon(className, 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5');
 }

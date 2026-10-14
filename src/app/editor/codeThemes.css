@@ -1,0 +1,239 @@
+/*
+ * The code themes (codeThemes.ts): the custom properties a fenced block's tokens are drawn with
+ * (Editor.module.css). Ink first, as the base, so a missing attribute falls back to the page's own ink. Light themes
+ * apply on the light page; dark themes are stamped after, under the same rules ink.css uses to decide the page is
+ * dark, so they win there.
+ */
+
+:root {
+  /* The block: the page itself, lifted a touch, whichever palette colours the code on it. */
+  --code-bg: color-mix(in oklch, var(--glacier-text) 7%, var(--glacier-bg));
+  --code-fg: var(--glacier-text);
+  --code-keyword: var(--glacier-text);
+  --code-string: var(--glacier-text-muted);
+  --code-comment: var(--glacier-text-subtle);
+  --code-type: var(--glacier-text);
+  --code-property: var(--glacier-text-muted);
+  --code-name: var(--glacier-text);
+  --code-literal: var(--glacier-text);
+  --code-punctuation: var(--glacier-text-muted);
+  --code-macro: var(--glacier-text);
+  --code-meta: var(--glacier-text-muted);
+  /* Ink shows the shape of code in weight; a coloured theme shows it in colour, at the reading weight. */
+  --code-keyword-weight: var(--glacier-font-weight-bold);
+  --code-name-weight: var(--glacier-font-weight-medium);
+}
+
+/* ---- light ------------------------------------------------------------------------------------------------ */
+
+:root[data-code-light='pastel'] {
+  --code-fg: var(--glacier-text);
+  --code-keyword: oklch(0.52 0.13 330);
+  --code-string: oklch(0.52 0.11 155);
+  --code-comment: oklch(0.6 0.02 260);
+  --code-type: oklch(0.55 0.12 70);
+  --code-property: oklch(0.52 0.12 25);
+  --code-name: oklch(0.5 0.12 250);
+  --code-literal: oklch(0.55 0.13 45);
+  --code-punctuation: var(--glacier-text-muted);
+  --code-macro: oklch(0.52 0.1 200);
+  --code-meta: oklch(0.5 0.1 295);
+  --code-keyword-weight: inherit;
+  --code-name-weight: inherit;
+}
+
+:root[data-code-light='github'] {
+  --code-fg: #1f2328;
+  --code-keyword: #cf222e;
+  --code-string: #0a3069;
+  --code-comment: #6e7781;
+  --code-type: #953800;
+  --code-property: #0550ae;
+  --code-name: #8250df;
+  --code-literal: #0550ae;
+  --code-punctuation: #1f2328;
+  --code-macro: #8250df;
+  --code-meta: #116329;
+  --code-keyword-weight: inherit;
+  --code-name-weight: inherit;
+}
+
+:root[data-code-light='solarized'] {
+  --code-fg: #586e75;
+  --code-keyword: #859900;
+  --code-string: #2aa198;
+  --code-comment: #93a1a1;
+  --code-type: #b58900;
+  --code-property: #268bd2;
+  --code-name: #268bd2;
+  --code-literal: #d33682;
+  --code-punctuation: #657b83;
+  --code-macro: #cb4b16;
+  --code-meta: #6c71c4;
+  --code-keyword-weight: inherit;
+  --code-name-weight: inherit;
+}
+
+/* ---- dark: explicit Dark, then System on a dark phone ------------------------------------------------------ */
+
+:root[data-theme='dark'][data-code-dark='pastel'] {
+  --code-fg: var(--glacier-text);
+  --code-keyword: oklch(0.82 0.1 330);
+  --code-string: oklch(0.86 0.09 155);
+  --code-comment: oklch(0.62 0.02 260);
+  --code-type: oklch(0.88 0.08 85);
+  --code-property: oklch(0.84 0.07 30);
+  --code-name: oklch(0.84 0.07 245);
+  --code-literal: oklch(0.85 0.08 55);
+  --code-punctuation: var(--glacier-text-muted);
+  --code-macro: oklch(0.85 0.07 200);
+  --code-meta: oklch(0.8 0.08 295);
+  --code-keyword-weight: inherit;
+  --code-name-weight: inherit;
+}
+
+:root[data-theme='dark'][data-code-dark='ink'] {
+  --code-fg: var(--glacier-text);
+  --code-keyword: var(--glacier-text);
+  --code-string: var(--glacier-text-muted);
+  --code-comment: var(--glacier-text-subtle);
+  --code-type: var(--glacier-text);
+  --code-property: var(--glacier-text-muted);
+  --code-name: var(--glacier-text);
+  --code-literal: var(--glacier-text);
+  --code-punctuation: var(--glacier-text-muted);
+  --code-macro: var(--glacier-text);
+  --code-meta: var(--glacier-text-muted);
+  --code-keyword-weight: var(--glacier-font-weight-bold);
+  --code-name-weight: var(--glacier-font-weight-medium);
+}
+
+:root[data-theme='dark'][data-code-dark='one-dark'] {
+  --code-fg: #abb2bf;
+  --code-keyword: #c678dd;
+  --code-string: #98c379;
+  --code-comment: #7f848e;
+  --code-type: #e5c07b;
+  --code-property: #e06c75;
+  --code-name: #61afef;
+  --code-literal: #d19a66;
+  --code-punctuation: #abb2bf;
+  --code-macro: #56b6c2;
+  --code-meta: #d19a66;
+  --code-keyword-weight: inherit;
+  --code-name-weight: inherit;
+}
+
+:root[data-theme='dark'][data-code-dark='dracula'] {
+  --code-fg: #f8f8f2;
+  --code-keyword: #ff79c6;
+  --code-string: #f1fa8c;
+  --code-comment: #6272a4;
+  --code-type: #8be9fd;
+  --code-property: #50fa7b;
+  --code-name: #50fa7b;
+  --code-literal: #bd93f9;
+  --code-punctuation: #f8f8f2;
+  --code-macro: #ffb86c;
+  --code-meta: #ffb86c;
+  --code-keyword-weight: inherit;
+  --code-name-weight: inherit;
+}
+
+:root[data-theme='dark'][data-code-dark='nord'] {
+  --code-fg: #d8dee9;
+  --code-keyword: #81a1c1;
+  --code-string: #a3be8c;
+  --code-comment: #616e88;
+  --code-type: #8fbcbb;
+  --code-property: #88c0d0;
+  --code-name: #88c0d0;
+  --code-literal: #b48ead;
+  --code-punctuation: #eceff4;
+  --code-macro: #d08770;
+  --code-meta: #d08770;
+  --code-keyword-weight: inherit;
+  --code-name-weight: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme])[data-code-dark='pastel'] {
+    --code-fg: var(--glacier-text);
+    --code-keyword: oklch(0.82 0.1 330);
+    --code-string: oklch(0.86 0.09 155);
+    --code-comment: oklch(0.62 0.02 260);
+    --code-type: oklch(0.88 0.08 85);
+    --code-property: oklch(0.84 0.07 30);
+    --code-name: oklch(0.84 0.07 245);
+    --code-literal: oklch(0.85 0.08 55);
+    --code-punctuation: var(--glacier-text-muted);
+    --code-macro: oklch(0.85 0.07 200);
+    --code-meta: oklch(0.8 0.08 295);
+    --code-keyword-weight: inherit;
+    --code-name-weight: inherit;
+  }
+
+  :root:not([data-theme])[data-code-dark='ink'] {
+    --code-fg: var(--glacier-text);
+    --code-keyword: var(--glacier-text);
+    --code-string: var(--glacier-text-muted);
+    --code-comment: var(--glacier-text-subtle);
+    --code-type: var(--glacier-text);
+    --code-property: var(--glacier-text-muted);
+    --code-name: var(--glacier-text);
+    --code-literal: var(--glacier-text);
+    --code-punctuation: var(--glacier-text-muted);
+    --code-macro: var(--glacier-text);
+    --code-meta: var(--glacier-text-muted);
+    --code-keyword-weight: var(--glacier-font-weight-bold);
+    --code-name-weight: var(--glacier-font-weight-medium);
+  }
+
+  :root:not([data-theme])[data-code-dark='one-dark'] {
+    --code-fg: #abb2bf;
+    --code-keyword: #c678dd;
+    --code-string: #98c379;
+    --code-comment: #7f848e;
+    --code-type: #e5c07b;
+    --code-property: #e06c75;
+    --code-name: #61afef;
+    --code-literal: #d19a66;
+    --code-punctuation: #abb2bf;
+    --code-macro: #56b6c2;
+    --code-meta: #d19a66;
+    --code-keyword-weight: inherit;
+    --code-name-weight: inherit;
+  }
+
+  :root:not([data-theme])[data-code-dark='dracula'] {
+    --code-fg: #f8f8f2;
+    --code-keyword: #ff79c6;
+    --code-string: #f1fa8c;
+    --code-comment: #6272a4;
+    --code-type: #8be9fd;
+    --code-property: #50fa7b;
+    --code-name: #50fa7b;
+    --code-literal: #bd93f9;
+    --code-punctuation: #f8f8f2;
+    --code-macro: #ffb86c;
+    --code-meta: #ffb86c;
+    --code-keyword-weight: inherit;
+    --code-name-weight: inherit;
+  }
+
+  :root:not([data-theme])[data-code-dark='nord'] {
+    --code-fg: #d8dee9;
+    --code-keyword: #81a1c1;
+    --code-string: #a3be8c;
+    --code-comment: #616e88;
+    --code-type: #8fbcbb;
+    --code-property: #88c0d0;
+    --code-name: #88c0d0;
+    --code-literal: #b48ead;
+    --code-punctuation: #eceff4;
+    --code-macro: #d08770;
+    --code-meta: #d08770;
+    --code-keyword-weight: inherit;
+    --code-name-weight: inherit;
+  }
+}

@@ -63,6 +63,9 @@ interface GlyphHostBridge {
   setCapturing?(on: boolean): void;
   /** The clipboard as JSON: `{ text }`, `{ path }` for a picture, `{ error }`, or `{}` (generation 12). */
   readClipboard?(): string;
+  // The system bars (native generation 15). Optional for the same reason.
+  /** Dark status and navigation bar icons on a light page, light ones on a dark page. */
+  setLightChrome?(light: boolean): void;
 }
 
 declare global {

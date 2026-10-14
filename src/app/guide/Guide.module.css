@@ -13,24 +13,38 @@
   color: var(--glacier-text);
 }
 
+/*
+ * The top bar sits over the page rather than above it: a blurred pane the
+ * smoke leads into as content scrolls under (Matt), solid paper only at the
+ * very top so the clock and the words read. The page pads itself by the bar's
+ * height (`--wisp-under`, art/wispEdge.ts).
+ */
 .top {
-  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-1));
-  font-size: var(--glacier-font-size-sm);
+  /* The guide covers the whole screen, the app's tab bar included, so it clears the notch alone: --app-safe-top
+     carries the bar's height as well, and padding by it would leave a bar's worth of nothing at the top. */
+  padding-block: calc(var(--app-inset-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
+  /* Nearly the size of Back and Next below (Matt): the page's corners read as one set of controls. */
+  font-size: calc(var(--app-action) * 0.88);
+  letter-spacing: var(--app-tracking-title);
 }
 
 .progress {
   color: var(--glacier-text-subtle);
+  font-weight: var(--glacier-font-weight-medium);
   font-variant-numeric: tabular-nums;
 }
 
 .skip {
-  font-size: var(--glacier-font-size-sm);
+  font-size: inherit;
+  font-weight: var(--glacier-font-weight-semibold);
+  padding-inline: var(--glacier-space-2);
+  margin-inline: calc(-1 * var(--glacier-space-2));
 }
+
 
 .page {
   flex: 1;
@@ -39,7 +53,8 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block: var(--glacier-space-6) var(--glacier-space-24);
+  /* Starts under the bar, so content only meets its blur once scrolled. */
+  padding-block: calc(var(--wisp-under, 3.5rem) + var(--glacier-space-4)) var(--glacier-space-24);
   animation: enter var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
 }
 
@@ -81,6 +96,92 @@
   line-height: 0.92;
   letter-spacing: var(--app-tracking-display);
   font-weight: var(--glacier-font-weight-bold);
+}
+
+/* The heads-up's headline (Welcome): display type, a size down so the gags above it keep their room. */
+.headsUp {
+  margin: 0 0 var(--glacier-space-4);
+  font-size: calc(var(--app-display) * 0.62);
+  line-height: 0.95;
+  letter-spacing: var(--app-tracking-display);
+  font-weight: var(--glacier-font-weight-bold);
+}
+
+/* Four promises, as ink pills that pop in one after another, their icons giving a wiggle now and then. */
+.promises {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+  margin: var(--glacier-space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.promise {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding: 0.3rem 0.9rem 0.3rem 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-ink, currentColor) 9%, transparent);
+  color: var(--glacier-text);
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  animation: promiseIn 420ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.promiseIcon {
+  display: grid;
+  place-items: center;
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  border-radius: 50%;
+  background: var(--app-ink, var(--glacier-text));
+  color: var(--app-paper, var(--glacier-bg));
+  animation: wiggle 3.2s ease-in-out 1.2s infinite;
+}
+
+.promise:nth-child(2) .promiseIcon {
+  animation-delay: 1.6s;
+}
+
+.promise:nth-child(3) .promiseIcon {
+  animation-delay: 2s;
+}
+
+.promise:nth-child(4) .promiseIcon {
+  animation-delay: 2.4s;
+}
+
+@keyframes promiseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.8);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  86%,
+  100% {
+    rotate: 0deg;
+  }
+  89% {
+    rotate: -14deg;
+  }
+  92% {
+    rotate: 12deg;
+  }
+  95% {
+    rotate: -6deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .promise,
+  .promiseIcon {
+    animation: none;
+  }
 }
 
 .title {
@@ -241,9 +342,9 @@
   justify-content: space-between;
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
   padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-3));
-  background: linear-gradient(to bottom, transparent, var(--glacier-bg) 45%);
   pointer-events: none;
 }
+
 
 .nav {
   pointer-events: auto;
@@ -261,6 +362,62 @@
 .primary {
   pointer-events: auto;
   min-inline-size: 8.5rem;
+}
+
+/* Next and the nudge share one place in the dock: Next waits for the bottom of the page, the nudge fades in meanwhile. */
+.nextSlot {
+  position: relative;
+  display: grid;
+  justify-items: end;
+}
+
+.nextSlot > * {
+  grid-area: 1 / 1;
+}
+
+.next,
+.nudge {
+  opacity: 0;
+  pointer-events: none;
+  translate: 0 8px;
+  transition:
+    opacity 320ms ease-out,
+    translate 420ms cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+.next[data-shown],
+.nudge[data-shown] {
+  opacity: 1;
+  pointer-events: auto;
+  translate: 0 0;
+}
+
+.nudge {
+  gap: var(--glacier-space-2);
+  white-space: nowrap;
+}
+
+/* The nudge's arrow bobs, pointing the way. */
+.nudge[data-shown] svg {
+  animation: nudgeBob 900ms ease-in-out infinite alternate;
+}
+
+@keyframes nudgeBob {
+  to {
+    translate: 0 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .next,
+  .nudge {
+    transition: opacity 200ms linear;
+    translate: none;
+  }
+
+  .nudge[data-shown] svg {
+    animation: none;
+  }
 }
 
 /* The record dot, in paper on the ink pill. */
@@ -363,4 +520,55 @@
 
 .choice + .choice {
   margin-block-start: var(--glacier-space-1);
+}
+
+/* The marks page (Guide.tsx Markdown): three lists under small section heads. */
+.section {
+  margin: var(--glacier-space-8) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+}
+
+.section + .phrases {
+  margin-top: var(--glacier-space-2);
+}
+
+/* A row with the mark itself beside the words: the mark set in the note's mono face, at the title's height. */
+.marked {
+  display: grid;
+  grid-template-columns: minmax(3.2rem, auto) 1fr;
+  column-gap: var(--glacier-space-4);
+  align-items: start;
+}
+
+.symbol {
+  justify-self: start;
+  margin-top: 0.1em;
+  padding: 0.15em 0.45em;
+  border: var(--glacier-hairline) solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-md, 8px);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: 1.4;
+  /* A long mark (a link's, a picture's) wraps inside its badge rather than being cut short. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-inline-size: 8.5rem;
+  color: var(--glacier-text);
+}
+
+
+/* "Not yet, finish reading.": a line at the top of the page for a reader who held the side key too early (tooSoon.ts). */
+.tooSoon {
+  margin: 0 0 var(--glacier-space-5);
+  font-size: var(--glacier-font-size-lg);
+  line-height: 1.3;
+  font-weight: var(--glacier-font-weight-medium);
+  letter-spacing: -0.01em;
+  color: var(--app-ink-2, var(--glacier-text-muted));
+  text-shadow: 0 0 18px color-mix(in oklch, var(--app-ink) 30%, transparent);
 }

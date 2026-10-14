@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '../core/tauri.ts';
+import { preferences } from '../core/preferences.ts';
 import type { Segment } from './markdown.ts';
 
 /**
@@ -38,6 +39,13 @@ export interface StopOptions {
 export interface Stopped {
   /** The kept tape's whole length, or null when nothing was kept. */
   recordedMs: number | null;
+  /**
+   * The final decoder result, when the engine has one. Whisper produces this
+   * from `capture_stop` after it has drained the last audio; phrase events can
+   * still be in flight when the page removes its listeners. Browser, simulated,
+   * and older native hosts do not have an authoritative final result.
+   */
+  transcript: string | null;
 }
 
 export interface CaptureSession {
@@ -49,9 +57,21 @@ export interface CaptureSession {
   push: (samples: Float32Array) => void;
   /** How much has been recorded, in ms, on the timeline segment times use. */
   positionMs: () => number;
-  /** Commit what remains; resolves once the final segments have been delivered. */
+  /** Commit what remains and return the authoritative final transcript where the engine has one. */
   stop: (options?: StopOptions) => Promise<Stopped>;
-  cancel: () => void;
+  /** Drop it; resolves once the engine has let go (the Whisper session is gone), where that takes a trip to Rust. */
+  cancel: () => void | Promise<void>;
+}
+
+/** Transfer a stopped temporary recording only after final confirmation. */
+export async function reassignRecording(fromId: string, toId: string, append: boolean): Promise<number | null> {
+  if (!isTauri()) return null;
+  return await invoke<number | null>('capture_reassign_recording', { fromId, toId, append });
+}
+
+/** A cancelled/rejected command has no note to own its temporary recording. */
+export async function discardRecording(id: string): Promise<void> {
+  if (isTauri()) await invoke('capture_discard_recording', { id });
 }
 
 // ---- the model ----------------------------------------------------------------
@@ -80,6 +100,8 @@ export async function ensureModel(onProgress?: (received: number, total: number)
   if (!isTauri()) return null;
   const status = await modelStatus();
   if (status?.present) return status;
+  // Local only: nothing is downloaded, and the recorder says why.
+  if (preferences().localOnly) throw new Error('Local only is on, so the voice model was not downloaded. Turn it off in Settings to get it.');
 
   const { listen } = await import('@tauri-apps/api/event');
   const unlisten = await listen<{ receivedBytes: number; totalBytes: number }>('capture://model-progress', (event) =>
@@ -102,6 +124,14 @@ export async function startCapture(handlers: CaptureHandlers): Promise<CaptureSe
 
 /** The binary generation whose `capture_stop` keeps the recording. */
 const RECORDING_GENERATION = 6;
+
+/**
+ * The Whisper session that owns the native capture, which there is only one of: every session's pushes land in the same
+ * recording. A session that has been replaced (the "Glyph" listener's, once the recorder starts its own; a start that
+ * was called off) must not keep pushing, or its audio is interleaved chunk by chunk with the live session's, and the
+ * tape plays back as a stutter of two copies a few milliseconds apart that Whisper can't make sense of.
+ */
+let owner: symbol | null = null;
 
 async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
   const { listen } = await import('@tauri-apps/api/event');
@@ -127,7 +157,9 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
   // Pushes are chained so they reach Rust in order; two in-flight invokes are
   // not guaranteed to land in the order they were sent.
   let chain: Promise<unknown> = Promise.resolve();
+  const me = Symbol('capture');
   const send = (samples: Float32Array) => {
+    if (owner !== me) return;
     recorded += samples.length;
     const pcm = toBase64(new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength));
     chain = chain.then(() => invoke('capture_push', { pcm })).catch((error: unknown) => handlers.onError(String(error)));
@@ -147,6 +179,8 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
     unlistenAll();
     throw error;
   }
+  // The native capture is this session's from here; any earlier session's pushes stop landing in it.
+  owner = me;
   started = true;
   for (const samples of held.splice(0)) send(samples);
 
@@ -161,23 +195,30 @@ async function whisper(handlers: CaptureHandlers): Promise<CaptureSession> {
     positionMs: () => (recorded * 1000) / 16_000,
     stop: async (options = {}) => {
       await chain;
+      if (owner === me) owner = null;
       try {
         if (!keepsAudio) {
           await invoke<unknown>('capture_stop');
-          return { recordedMs: null };
+          return { recordedMs: null, transcript: null };
         }
         const finished = await invoke<{ transcript: string; recordedMs: number | null }>('capture_stop', {
           recordAs: options.recordAs ?? null,
           append: options.append ?? false,
         });
-        return { recordedMs: finished.recordedMs };
+        return { recordedMs: finished.recordedMs, transcript: finished.transcript?.trim() || null };
       } finally {
         unlistenAll();
       }
     },
     cancel: () => {
       unlistenAll();
-      void invoke('capture_cancel').catch(() => undefined);
+      // A session that no longer owns the native capture leaves it alone: cancelling would end the newer session's.
+      if (owner !== me) return Promise.resolve();
+      owner = null;
+      return invoke('capture_cancel').then(
+        () => undefined,
+        () => undefined,
+      );
     },
   };
 }
@@ -217,7 +258,7 @@ function browser(handlers: CaptureHandlers): CaptureSession {
     stop: () => void;
   };
   const Ctor = (window as unknown as { webkitSpeechRecognition?: new () => Recognition }).webkitSpeechRecognition;
-  if (!Ctor) throw new Error('Voice notes need the Glyph app; this browser has no speech recognition.');
+  if (!Ctor) throw new Error('Voice notes need the Ghost.md app; this browser has no speech recognition.');
 
   const recognition = new Ctor();
   recognition.continuous = true;
@@ -262,7 +303,7 @@ function browser(handlers: CaptureHandlers): CaptureSession {
     stop: () =>
       new Promise<Stopped>((resolve) => {
         running = false;
-        settle = () => resolve({ recordedMs: null });
+        settle = () => resolve({ recordedMs: null, transcript: null });
         recognition.stop();
       }),
     cancel: () => {
@@ -289,7 +330,10 @@ function browser(handlers: CaptureHandlers): CaptureSession {
  * with the item after a pause, answered yes, then one answered no, then the
  * keyword with no command after it; `?simulate=ask` stops at the question;
  * `?simulate=table` builds a table in AttackFM by answering its questions, and
- * `?simulate=tableask` stops at the table's yes.
+ * `?simulate=tableask` stops at the table's yes; `?simulate=say&say=a|b` speaks
+ * the phrases given, bar-separated. `?simulate=review&review`
+ * says a note with a misheard word and, on Done, runs the review with its
+ * models simulated (review/useReview.ts).
  */
 const SCRIPTS: Record<string, string[]> = {
   note: [
@@ -299,17 +343,22 @@ const SCRIPTS: Record<string, string[]> = {
     'Remember to ask Sam about the dog.',
     'Separately the car needs an oil change before we leave.',
   ],
-  route: ['Oat milk, eggs and the good coffee.', 'Glyph, move this to shopping list.', 'Yes.', 'And bin bags.'],
-  leave: ['Quick thought before I forget.', 'Glyph, leave a note on the page for attack FM that says the seek bar drifts on two devices.', 'Yes.', 'Glyph, leave a note for attack FM.', 'Ship the APK on Friday.', 'Yes.'],
-  item: ['Quick thought before I forget.', 'Glyph, new item for attack FM.', 'Fix the login bug on Android.', 'Yes.', 'Glyph, new tasks for attack FM.', 'Update the readme, ship the APK and tell Sam.', 'Yes.'],
-  table: ['Bug bash on Friday.', 'Glyph, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it.", 'Yes.'],
-  tableask: ['Bug bash on Friday.', 'Glyph, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it."],
-  ask: ['Quick thought before I forget.', 'Glyph, add a list item to the attack FM.', 'Fix the seek bar.'],
-  command: ['Quick thought before I forget.', 'Glyph, add a list item to the attack FM.', 'Fix the seek bar.', 'Yes.', 'Glyph add ship the APK to attack FM.', 'No.', 'Glyph is going to need a plugin store.'],
+  route: ['Oat milk, eggs and the good coffee.', 'Hey Ghost, move this to shopping list.', 'Yes.', 'And bin bags.'],
+  leave: ['Quick thought before I forget.', 'Hey Ghost, leave a note on the page for attack FM that says the seek bar drifts on two devices.', 'Yes.', 'Hey Ghost, leave a note for attack FM.', 'Ship the APK on Friday.', 'Yes.'],
+  item: ['Quick thought before I forget.', 'Hey Ghost, new item for attack FM.', 'Fix the login bug on Android.', 'Yes.', 'Hey Ghost, new tasks for attack FM.', 'Update the readme, ship the APK and tell Sam.', 'Yes.'],
+  table: ['Bug bash on Friday.', 'Hey Ghost, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it.", 'Yes.'],
+  giveback: ['Pick up the parcel.', 'Hey Ghost, that was a long day.'],
+  review: ['Bug bash on Friday.', 'Fix the seat bar on two devices.', 'Downloads get stuck on the discover list.'],
+  tableask: ['Bug bash on Friday.', 'Hey Ghost, add a table to attack FM.', 'Bug, owner and status.', 'Seek bar drift, Matt, open.', 'Downloads stuck, Sam, fixed.', "That's it."],
+  ask: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.'],
+  command: ['Quick thought before I forget.', 'Hey Ghost, add a list item to the attack FM.', 'Fix the seek bar.', 'Yes.', 'Hey Ghost add ship the APK to attack FM.', 'No.', 'Ghost is going to need a plugin store.'],
 };
 
 function simulated(handlers: CaptureHandlers): CaptureSession {
-  const script = SCRIPTS[new URLSearchParams(window.location.search).get('simulate') ?? ''] ?? SCRIPTS.note!;
+  const params = new URLSearchParams(window.location.search);
+  // `?simulate=say&say=First phrase.|Second phrase.` speaks whatever is given, a phrase per bar: any command can be tried without a microphone.
+  const said = params.get('say');
+  const script = said ? said.split('|').map((phrase) => phrase.trim()).filter(Boolean) : (SCRIPTS[params.get('simulate') ?? ''] ?? SCRIPTS.note!);
   type Cue = { at: number; run: () => void };
   const cues: Cue[] = [];
   let at = 0;
@@ -352,7 +401,7 @@ function simulated(handlers: CaptureHandlers): CaptureSession {
     stop: async () => {
       await Promise.race([done, new Promise((resolve) => window.setTimeout(resolve, 50))]);
       window.clearInterval(timer);
-      return { recordedMs: Math.round(clock) };
+      return { recordedMs: Math.round(clock), transcript: null };
     },
     cancel: () => window.clearInterval(timer),
   };

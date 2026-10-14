@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  attack.fm/glyph/install.html - the page to open on a phone to install Glyph.
+  attack.fm/glyph/install.html - the page to open on a phone to install Ghost.md.
 
   Static and self-contained on purpose: it is copied into dist/ from public/,
   reads apk.json from its own directory (same origin, so no CORS), and must
@@ -12,7 +12,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="robots" content="noindex" />
-    <title>Install Glyph</title>
+    <title>Install Ghost.md</title>
     <style>
       :root {
         color-scheme: dark;
@@ -105,34 +105,96 @@
         color: var(--subtle);
       }
       .foot a { color: var(--muted); }
+      /*
+       * One page for both apps, the one for the device that opened it first. A Mac section stays hidden until
+       * desktop.json says there is a Mac build to give, so the page never offers a download that is not there.
+       */
+      .apps { display: flex; flex-direction: column; }
+      .app + .app { margin-top: 64px; }
+      .app[hidden] { display: none; }
+      body[data-platform='mac'] .app[data-for='mac'] { order: -1; }
+      body[data-platform='mac'] .app[data-for='mac'] + .app { margin-top: 0; }
+      body[data-platform='mac'] .app[data-for='android'] { margin-top: 64px; }
+      .platform {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--subtle);
+      }
     </style>
   </head>
   <body>
-    <p class="eyebrow">Notes for Android</p>
-    <h1>Glyph</h1>
-    <p class="version" id="version">&nbsp;</p>
+    <p class="eyebrow" id="eyebrow">Notes for Android and Mac</p>
+    <h1>Ghost.md</h1>
 
-    <div>
-      <a class="install" href="glyph.apk" id="install">Install <span>→</span></a>
-      <p class="size" id="size">&nbsp;</p>
+    <div class="apps">
+      <section class="app" data-for="android">
+        <p class="platform">Android</p>
+        <p class="version" id="version">&nbsp;</p>
+
+        <div>
+          <a class="install" href="glyph.apk" id="install">Install <span>→</span></a>
+          <p class="size" id="size">&nbsp;</p>
+        </div>
+
+        <ol>
+          <li><span>Tap <strong>Install</strong>. Chrome downloads the app.</span></li>
+          <li><span>Open the download. If Android asks, <strong>allow installs from Chrome</strong> and go back.</span></li>
+          <li><span>Tap <strong>Update</strong> or <strong>Install</strong>. Your notes stay where they are.</span></li>
+          <li><span>From here Ghost.md <strong>updates itself</strong>: new versions arrive while it is open and apply the next time it starts. When a change needs a new app, Ghost.md offers it in the app.</span></li>
+        </ol>
+      </section>
+
+      <section class="app" data-for="mac" id="mac" hidden>
+        <p class="platform">Mac</p>
+        <p class="version" id="macVersion">&nbsp;</p>
+
+        <div>
+          <a class="install" href="glyph.dmg" id="macInstall">Download <span>→</span></a>
+          <p class="size" id="macSize">&nbsp;</p>
+        </div>
+
+        <ol>
+          <li><span>Open the download and <strong>drag Ghost.md into Applications</strong>.</span></li>
+          <li><span>Open Ghost.md. The first time, macOS says it <strong>can’t check it for malicious software</strong>: the app is signed by its developer but not yet notarised by Apple. Choose <strong>Done</strong>, then in <strong>System Settings › Privacy &amp; Security</strong> scroll down and choose <strong>Open Anyway</strong>. On macOS 14 or older, Control-click Ghost.md and choose <strong>Open</strong> instead. You only do this once.</span></li>
+          <li><span>The first time you record, <strong>allow the microphone</strong>. What you say is turned into words on the Mac itself.</span></li>
+          <li><span>Sign in with the same account as your phone and your notes <strong>follow you</strong>. From here Ghost.md <strong>updates itself</strong>, as it does on the phone.</span></li>
+        </ol>
+      </section>
     </div>
 
-    <ol>
-      <li><span>Tap <strong>Install</strong>. Chrome downloads the app.</span></li>
-      <li><span>Open the download. If Android asks, <strong>allow installs from Chrome</strong> and go back.</span></li>
-      <li><span>Tap <strong>Update</strong> or <strong>Install</strong>. Your notes stay where they are.</span></li>
-      <li><span>From here Glyph <strong>updates itself</strong>: new versions arrive while it is open and apply the next time it starts. When a change needs a new app, Glyph offers it in the app.</span></li>
-    </ol>
-
-    <p class="foot">Not on your phone? <a href="./">Open the web version</a>.</p>
+    <p class="foot">Neither of these? <a href="./">Open the web version</a>.</p>
 
     <script>
+      /*
+       * Which app to put first. An iPad calls itself a Mac, so a Mac is one that says so with no touch screen. Android
+       * and anything else keep the Android app first, as the page always did.
+       */
+      var ua = navigator.userAgent;
+      var isMac = /Macintosh/i.test(ua) && !(navigator.maxTouchPoints > 1);
+      if (isMac) document.body.setAttribute('data-platform', 'mac');
+
       fetch('apk.json', { cache: 'no-store' })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (apk) {
           if (!apk) return;
           document.getElementById('version').textContent = 'Version ' + apk.version;
           document.getElementById('size').textContent = Math.round(apk.bytes / 1e6) + ' MB · Android 7 or newer';
+        })
+        .catch(function () {});
+
+      // The Mac section only once there is a Mac build: desktop.json is written by the same deploy that uploads it.
+      fetch('desktop.json', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (mac) {
+          if (!mac || !mac.url) return;
+          document.getElementById('macInstall').setAttribute('href', mac.url);
+          document.getElementById('macVersion').textContent = 'Version ' + mac.version;
+          document.getElementById('macSize').textContent =
+            Math.round(mac.bytes / 1e6) + ' MB · Apple silicon and Intel · macOS ' + mac.minimumSystemVersion + ' or newer';
+          document.getElementById('mac').hidden = false;
         })
         .catch(function () {});
     </script>

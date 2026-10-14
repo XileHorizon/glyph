@@ -1,5 +1,5 @@
 import { Download, Sparkles } from '@glacier/icons';
-import { ProgressBar } from '@glacier/react';
+import { ProgressBar, Switch } from '@glacier/react';
 import { DEFAULT_MODEL, gb, MODELS, useModels } from '../core/ai.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -28,17 +28,29 @@ export function FormattingPane() {
       <SettingsEmpty
         icon={<Sparkles size={22} />}
         title="Formatting runs on the phone."
-        body="The models are downloaded to and run on the device. Install Glyph on Android to use them; nothing leaves the phone."
+        body="The models are downloaded to and run on the device. Install Ghost.md on Android to use them; nothing leaves the phone."
       />
     );
   }
 
   return (
     <>
+      <PaneSection title="On the phone" description="Every model runs on this phone. Nothing you write or say is sent anywhere to be formatted.">
+        <SettingRow
+          label="Local only"
+          hint={
+            prefs.localOnly
+              ? 'On. No update checks, no downloads, and plugins that use the network are off. Ghost.md runs from what is on the phone.'
+              : 'Turn off update checks, downloads, and every plugin that uses the network. Ghost.md then runs from what is on the phone.'
+          }
+          control={<Switch aria-label="Local only" checked={prefs.localOnly} onCheckedChange={(localOnly) => setPreferences({ localOnly })} />}
+        />
+      </PaneSection>
+
       {downloading && download ? (
         <SettingsCallout icon={<Download size={20} />}>
           <span>
-            Getting {downloading.name}, {gb(download.received)} of {gb(download.total)}. Keep Glyph open.
+            Getting {downloading.name}, {gb(download.received)} of {gb(download.total)}. Keep Ghost.md open.
           </span>
           <ProgressBar aria-label={`Downloading ${downloading.name}`} value={download.received} max={Math.max(download.total, 1)} size="sm" />
         </SettingsCallout>

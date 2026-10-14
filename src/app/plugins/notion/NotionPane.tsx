@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SquareKanban } from '@glacier/icons';
 import { PaneSection, RowAction, SettingRow, SettingsCallout, SettingsEmpty, SettingsFootnote } from '../../settings/kit/settingsKit.tsx';
 import { isTauri } from '../../core/tauri.ts';
+import { forgetTaskDetails } from './details.ts';
 import { disconnectNotion, listBoards, notionAvailable, startNotionSignIn, useNotionAccount, type Board } from './client.ts';
 
 /**
@@ -46,11 +47,11 @@ export function NotionPane() {
     return isTauri() ? (
       <SettingsEmpty
         icon={<SquareKanban size={22} />}
-        title="Notion needs the newest Glyph."
+        title="Notion needs the newest Ghost.md."
         body="Install the latest version from Settings > Updates, then come back here to sign in."
       />
     ) : (
-      <SettingsEmpty icon={<SquareKanban size={22} />} title="Notion works in the app." body="Sign in from Glyph on your phone, where your sign-in can be kept safe." />
+      <SettingsEmpty icon={<SquareKanban size={22} />} title="Notion works in the app." body="Sign in from Ghost.md on your phone, where your sign-in can be kept safe." />
     );
   }
 
@@ -68,14 +69,15 @@ export function NotionPane() {
     <>
       {problem || trouble ? <SettingsCallout>{problem ?? trouble}</SettingsCallout> : null}
 
-      <PaneSection title="Account" description="Glyph sends list items to your Notion boards as tasks. Nothing else in your notes goes to Notion.">
+      <PaneSection title="Account" description="Ghost.md sends list items to your Notion boards as tasks. Nothing else in your notes goes to Notion.">
         {account?.connected ? (
           <SettingRow
             label={`Signed in to ${account.workspaceName || 'Notion'}`}
-            hint="To give Glyph more boards, sign in again and pick them."
+            hint="To give Ghost.md more boards, sign in again and pick them."
             control={
               <RowAction
                 onPress={() => {
+                  forgetTaskDetails();
                   void disconnectNotion().then(refresh);
                 }}
               >
@@ -86,14 +88,14 @@ export function NotionPane() {
         ) : (
           <SettingRow
             label={waiting ? 'Finish signing in on Notion' : 'Not signed in'}
-            hint={waiting ? 'Pick the boards Glyph can use, then come back here.' : 'Notion opens in your browser and asks which pages and boards Glyph may use.'}
+            hint={waiting ? 'Pick the boards Ghost.md can use, then come back here.' : 'Notion opens in your browser and asks which pages and boards Ghost.md may use.'}
             control={<RowAction onPress={() => void signIn()}>{waiting ? 'Open again' : 'Sign in'}</RowAction>}
           />
         )}
       </PaneSection>
 
       {account?.connected ? (
-        <PaneSection title="Boards" description="The boards Notion let Glyph see. Link one to a note from the cog on that note.">
+        <PaneSection title="Boards" description="The boards Notion let Ghost.md see. Link one to a note from the cog on that note.">
           {boards === null ? (
             <SettingRow label="Looking for boards…" />
           ) : boards.length ? (

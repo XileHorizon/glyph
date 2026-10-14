@@ -17,7 +17,9 @@
   z-index: 55;
   display: flex;
   flex-direction: column;
-  background: var(--glacier-bg);
+  /* What a pane draws against, the cheat sheet among them (guide/CheatSheet.module.css). */
+  --sheet-ground: var(--glacier-bg);
+  background: var(--sheet-ground);
   color: var(--glacier-text);
   animation: settingsEnter var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
 }
@@ -26,6 +28,54 @@
   from {
     opacity: 0;
     transform: translateY(12px);
+  }
+}
+
+/*
+ * On a window wide enough to have the notes beside a note, Settings is a card over the page rather than a screen that
+ * replaces it (Matt: "on a large display, the settings should open in a modal"). Full bleed is right on a phone,
+ * where a settings screen IS the screen; on a desktop it reads as the app having gone somewhere else entirely.
+ *
+ * Exactly when the sidebar is up, so the app changes shape once rather than twice: App.tsx stamps `data-split` on the
+ * root and the rule lives in core/useWideScreen.ts alone. It used to be a second copy of that threshold written here
+ * as `900px`, which is two numbers to keep in step and no way to notice when they stop being. The card keeps
+ * everything inside it exactly as it is: the head, the list and the panes all scroll within it.
+ */
+:root[data-split] .settingsScreen {
+  inset-block: 50% auto;
+  inset-inline: 50% auto;
+  translate: -50% -50%;
+  inline-size: min(46rem, 92vw);
+  block-size: min(44rem, 88vh);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  /* A token, not a number: every radius on this scale is multiplied by --glacier-radius-scale, so the card follows
+     Appearance > Corners instead of being the one surface that ignores it. */
+  border-radius: var(--glacier-radius-xl);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 45%);
+  overflow: hidden;
+  animation: settingsCardIn var(--glacier-duration-normal, 200ms) var(--glacier-ease-out, ease-out);
+}
+
+/* The page behind it, dimmed: drawn by the card itself, behind its own ground, so there is no second element to mount. */
+:root[data-split] .settingsScreen::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--app-scrim);
+}
+
+/* The card arrives in place rather than rising, since it is not replacing the page under it. */
+@keyframes settingsCardIn {
+  from {
+    opacity: 0;
+    scale: 0.98;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-split] .settingsScreen {
+    animation: none;
   }
 }
 
@@ -172,8 +222,15 @@
   justify-content: space-between;
   gap: var(--glacier-space-4);
   padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
-  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-1));
-  font-size: var(--glacier-font-size-md);
+  /*
+   * Settings is drawn over everything, the app's tab bar included, so it clears the notch alone (--app-safe-top
+   * carries the bar's height too, and padding by it left an empty bar's worth above the first word). Less air above
+   * and below than it had, with the screen's own name now in this row rather than under it (Matt: "move settings back
+   * arrow next to settings label ... remove some of the space on the top").
+   */
+  padding-block-start: calc(var(--app-inset-top, 0px) + var(--glacier-space-1));
+  padding-block-end: var(--glacier-space-1);
+  font-size: var(--app-action);
 }
 
 .settingsScreen__headWord {
@@ -203,18 +260,18 @@
 }
 
 /* The page's own word, set like the list's "Notes". */
+/*
+ * The page's word: "Settings", or the page's own name. A title rather than a
+ * display word (Matt: "make settings header smaller"), so the rows start near
+ * the top and the bar above carries the way back.
+ */
 .settingsScreen__display {
-  margin: var(--glacier-space-2) 0 var(--glacier-space-2);
-  font-size: var(--app-display);
-  line-height: 0.95;
-  letter-spacing: var(--app-tracking-display);
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--app-title);
+  line-height: 1.15;
+  letter-spacing: var(--app-tracking-title);
   font-weight: var(--glacier-font-weight-bold);
   overflow-wrap: anywhere;
-}
-
-/* A pane's word is a step smaller: it sits under "Settings", not in its place. */
-.settingsScreen__pane .settingsScreen__display {
-  font-size: calc(var(--app-display) * 0.72);
 }
 
 /* ── the section list ─────────────────────────────────────────────────────── */
@@ -440,7 +497,6 @@
 }
 
 .setk-hero__glyph,
-.setk-tile,
 .setk-empty__icon {
   display: grid;
   place-items: center;
@@ -450,17 +506,6 @@
   border-radius: var(--glacier-radius-lg);
   background: var(--app-paper-3);
   color: var(--app-ink);
-}
-
-.setk-tile[data-size='sm'] {
-  inline-size: 2rem;
-  block-size: 2rem;
-  border-radius: var(--glacier-radius-md);
-}
-
-.setk-tile[data-size='lg'] {
-  inline-size: 3.25rem;
-  block-size: 3.25rem;
 }
 
 .setk-hero__body {
@@ -593,6 +638,35 @@
   padding-inline: var(--glacier-space-2);
 }
 
+/* ── account: sign-in form and recovery codes ────────────────────────────── */
+
+.setk-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-3);
+}
+
+.setk-form__submit {
+  align-self: flex-start;
+}
+
+.setk-form__problem {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink);
+}
+
+.setk-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--glacier-space-2) var(--glacier-space-4);
+  padding: var(--glacier-space-3);
+  font-size: var(--glacier-font-size-md, 1rem);
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+
 /* ── pick one: a ring, an ink dot when chosen ─────────────────────────────── */
 
 .setk-pick {
@@ -655,3 +729,31 @@
   column-gap: var(--glacier-space-5);
   padding-inline: var(--glacier-space-2);
 }
+
+/* The GitHub plugin's token field: the box and its button, one under the other across the row. */
+.ghp-token {
+  display: grid;
+  gap: var(--glacier-space-2);
+  inline-size: 100%;
+}
+
+.ghp-token > :last-child {
+  justify-self: end;
+}
+
+.ghp-tokenField {
+  inline-size: 100%;
+  min-block-size: var(--glacier-space-10);
+  padding-inline: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border);
+  border-radius: var(--glacier-radius-md, 8px);
+  background: var(--glacier-surface);
+  color: var(--glacier-text);
+  font: inherit;
+}
+
+.ghp-tokenField:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+

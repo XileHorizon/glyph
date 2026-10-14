@@ -1,0 +1,287 @@
+/*
+ * The instructions drawer (ClaudeGuide.tsx): a card over Settings › Claude. On a phone it rises from the bottom
+ * and takes the width; on a wide window it floats in the middle. The notes card's materials (notes/NotesDrawer
+ * .module.css) - a hairline, the big radius, the blurred paper - with a faint scrim under it, because this one is for
+ * reading and a tap anywhere else should plainly close it.
+ */
+
+.over {
+  position: fixed;
+  inset: 0;
+  /* Over the settings page it opens from (settings.css, 55), under the palette and the toasts (60). */
+  z-index: 58;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--app-scrim, rgb(0 0 0 / 40%));
+  animation: scrimIn 180ms ease-out;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  max-inline-size: 34rem;
+  max-block-size: calc(100dvh - var(--app-safe-top, 0px) - var(--glacier-space-8));
+  padding-block-end: var(--app-safe-bottom, 0px);
+  border: 1px solid var(--glacier-border-subtle);
+  border-block-end: 0;
+  border-radius: var(--glacier-radius-lg, 16px) var(--glacier-radius-lg, 16px) 0 0;
+  background: color-mix(in srgb, var(--glacier-bg) 92%, var(--glacier-text) 3%);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 -12px 40px rgb(0 0 0 / 28%);
+  outline: none;
+  animation: riseIn 220ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+}
+
+/* A wide window: the card floats, and grows out of the middle rather than rising. */
+@media (min-width: 720px) {
+  .over {
+    align-items: center;
+    padding: var(--glacier-space-6);
+  }
+
+  .card {
+    max-block-size: min(46rem, calc(100dvh - var(--glacier-space-12)));
+    padding-block-end: 0;
+    border-block-end: 1px solid var(--glacier-border-subtle);
+    border-radius: var(--glacier-radius-lg, 16px);
+    box-shadow: 0 16px 40px rgb(0 0 0 / 34%);
+    animation: floatIn 180ms var(--glacier-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
+  }
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes riseIn {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes floatIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrim,
+  .card {
+    animation: none;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-4) var(--glacier-space-4) var(--glacier-space-2) var(--glacier-space-5);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: var(--app-tracking-title, -0.025em);
+  color: var(--glacier-text);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-9);
+  block-size: var(--glacier-space-9);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.close:hover,
+.close:focus-visible {
+  background: var(--app-paper-2);
+  color: var(--glacier-text);
+  outline: none;
+}
+
+.ways {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 0 var(--glacier-space-5) var(--glacier-space-3);
+  padding: 2px;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: 999px;
+  background: var(--app-paper-2);
+}
+
+/* A way: a word in the track, ink on paper when chosen, as the app's segments are. */
+.way {
+  padding: 0.45rem 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.way[aria-checked='true'] {
+  background: var(--app-ink);
+  color: var(--app-paper);
+}
+
+.way:focus-visible {
+  outline: 2px solid var(--app-ink);
+  outline-offset: 2px;
+}
+
+/* The steps scroll between the header and the bottom; the header and the segments stay put. */
+.scroll {
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--glacier-space-5) var(--glacier-space-6);
+}
+
+.lead {
+  margin: 0 0 var(--glacier-space-4);
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.5;
+  color: var(--glacier-text-muted);
+  text-wrap: pretty;
+}
+
+.steps {
+  display: grid;
+  gap: var(--glacier-space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--glacier-space-3);
+}
+
+/* The step's number, an ink dot with the figure in paper, as the app's own bullets are drawn. */
+.number {
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  margin-block-start: 0.05rem;
+  border-radius: 999px;
+  background: var(--app-ink);
+  color: var(--app-paper);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.stepBody {
+  display: grid;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  line-height: 1.5rem;
+  color: var(--glacier-text);
+}
+
+.words {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.5;
+  color: var(--glacier-text-muted);
+  text-wrap: pretty;
+}
+
+/* A thing to copy: the words in the mono face on paper-2, and the Copy at the end. A long command wraps rather than scrolls. */
+.snippet {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-2) var(--glacier-space-2) var(--glacier-space-2) var(--glacier-space-3);
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md, 10px);
+  background: var(--app-paper-2);
+}
+
+.code {
+  flex: 1;
+  min-inline-size: 0;
+  padding-block: 0.3rem;
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.45;
+  color: var(--glacier-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  flex: none;
+  padding: 0.35rem 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.copy:hover,
+.copy:focus-visible {
+  background: var(--app-paper-3);
+  outline: none;
+}
+
+.copy[data-copied] {
+  color: var(--glacier-text-muted);
+}
+
+/* A narrow phone: the Copy is its icon alone (the label still says it), and the command keeps the width. */
+@media (max-width: 420px) {
+  .copy {
+    padding: 0.4rem;
+  }
+
+  .copy span {
+    display: none;
+  }
+}

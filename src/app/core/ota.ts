@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
 
 /**
@@ -95,10 +96,26 @@ export interface Updates {
   installApk: () => void;
 }
 
-/** How long a returning app waits before looking again. */
-const RECHECK_MS = 10 * 60_000;
+/**
+ * How long a returning app waits before looking again. A minute: coming back to
+ * Glyph is the moment a wait for an update is felt, and a check is one small
+ * signed manifest.
+ */
+const RECHECK_MS = 60_000;
 /** The first look, after launch has settled and the list has painted. */
 const FIRST_CHECK_MS = 4_000;
+/**
+ * And again, on this beat, for as long as the app is open and on screen.
+ *
+ * Matt: "the OTA update is taking really long to show up in the app". It was:
+ * an app left open looked once, four seconds after launch, and then never
+ * again until it had been away and come back. Published anything after that
+ * first look and the app would not see it for as long as it stayed in front of
+ * you - which is exactly what someone testing a release does. Nothing runs
+ * while the app is hidden or in the background; the native notifier
+ * (UpdateCheckWorker.kt) is what covers that, and it keeps its own six hours.
+ */
+const POLL_MS = 2 * 60_000;
 
 let settled = false;
 
@@ -134,6 +151,9 @@ export function isNewerVersion(offered: string, installed: string): boolean {
   return false;
 }
 
+/** Whether this page was built as the staging app (vite.config.ts): its own id, its own data, no updates. */
+export const STAGING: boolean = typeof __GLYPH_STAGING__ !== 'undefined' && __GLYPH_STAGING__;
+
 export function useUpdates(): Updates {
   const [ready, setReady] = useState<Updates['ready']>(null);
   const [apk, setApk] = useState<ApkPhase>({ kind: 'none' });
@@ -145,7 +165,12 @@ export function useUpdates(): Updates {
   const lastAt = useRef(0);
 
   const check = useCallback(async () => {
-    if (!isTauri() || running.current) return;
+    // Local only: nothing is asked of the box, not even whether there is an update.
+    // A staging build never updates: what was installed is what runs.
+    // Nor does Glyph Dev (`tauri android dev`): its page comes live from the Mac's Vite server, so a downloaded bundle
+    // is never what it runs, and offering one left "A new version of Glyph is ready" that Reload could never take
+    // (Matt: "the OTA update isn't taking").
+    if (!isTauri() || running.current || preferences().localOnly || STAGING || import.meta.env.DEV) return;
     running.current = true;
     setChecking(true);
     try {
@@ -190,8 +215,13 @@ export function useUpdates(): Updates {
       if (document.visibilityState === 'visible' && Date.now() - lastAt.current > RECHECK_MS) void check();
     };
     document.addEventListener('visibilitychange', onVisible);
+    // On the beat, while the app is in front: a hidden app is asleep and the phone's own notifier covers that.
+    const beat = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void check();
+    }, POLL_MS);
     return () => {
       window.clearTimeout(first);
+      window.clearInterval(beat);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [check]);

@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { MarkDetailsProvider } from '../core/markDetails.ts';
 
 /**
  * What a plugin is, and every place it can reach into Glyph.
@@ -87,6 +88,12 @@ export interface NoteLink {
   unavailable?(): Promise<string | null>;
   /** The page, inside the sheet. `onDone` goes back to the note's settings. */
   Picker: ComponentType<{ noteId: string; onDone: () => void }>;
+  /**
+   * The name of what this note is linked to ("Glyph Tasks", "attackfm/app"),
+   * or null when it isn't: the mark the note carries at its top and in the
+   * list (plugins/LinkMarks.tsx). Read on every draw; keep it cheap.
+   */
+  linked?(noteId: string): string | null;
 }
 
 /** The note on screen, for actions that change it: edits go through its editor, so each is an undo step. */
@@ -175,6 +182,67 @@ export interface FormatContext {
   version(noteId: string): number;
 }
 
+/**
+ * A quiet word at the end of a line of the note: what a plugin could do with
+ * that line, tapped to do it. "Notion" after a to-do that could be a task.
+ * Offered only for what is possible right now, so a note with nothing linked
+ * shows none. The editor draws them faint, hides the one on the line being
+ * typed, and shows the busy word while it runs (editor/suggestions.ts).
+ */
+export interface Suggestion {
+  /** 1-based line in the note. */
+  line: number;
+  /** The word: "Notion". */
+  label: string;
+  /** The word while it runs: "Sending". */
+  busyLabel: string;
+  run(editing: NoteEditing): Promise<void>;
+}
+
+/**
+ * An inline formatting a plugin adds to the Markdown of notes: the text
+ * between two runs of `delimiter`, drawn with `look`. The editor's markdown
+ * parses it (editor/language.ts) as a node named `name`, with a `${name}Mark`
+ * for each delimiter run, which stays visible and dimmed like every other
+ * mark (docs/DESIGN.md §3.2). Typed, not spoken: the voice cues don't know it.
+ */
+export interface InlineFormat {
+  /** The node's name, capitalised, unique across plugins: "Spoiler". */
+  name: string;
+  /** One to three of the same character, none Markdown already uses (`*`, `_`, `~`, `` ` ``, brackets, `#`, `!`): "||". */
+  delimiter: string;
+  /** How the text between the delimiters looks. */
+  look: FormatLook;
+  /**
+   * The word that says it while recording, the way "bold … end bold" says
+   * bold (capture/markdown.ts): "spoiler" for "spoiler … end spoiler". Absent,
+   * the formatting is typed only, and the guide says so.
+   */
+  cue?: string;
+  /** One line on what it is for, for the guide's marks page: "A dotted line under a fact to check later." */
+  about?: string;
+  /** Its own mark on the Style page, where a plugin brings several: the plugin's icon otherwise. */
+  icon?: ComponentType<{ size?: number }>;
+  /**
+   * A name in brackets after the mark, turned into extra CSS for those words alone: `==the key==(green)` is a green
+   * highlight (Matt: "Add a colour option on the highlight supporting the colour names from the glacierUI kit").
+   *
+   * It is the same shape as a note on a mark (editor/markNotes.ts), and the two share the brackets: a name this
+   * answers is a colour, anything else is still a note. Answer null for a name the mark does not know, and the words
+   * keep the mark's own look - an unknown colour is never nothing.
+   */
+  tint?: (name: string) => string | null;
+}
+
+export type FormatLook =
+  /** Smoke: every letter bent and blurred without rest (editor/wispFormat.ts), plain only while the caret is in the text. */
+  | { kind: 'wisp' }
+  /**
+   * A style on the text, as CSS: `{ kind: 'style', css: 'text-decoration: underline' }`. With `clearAtCaret` the
+   * style lifts while the caret is in the words (a redaction's bar), so they can still be edited.
+   */
+  | { kind: 'style'; css: string; clearAtCaret?: boolean };
+
 export interface GlyphPlugin {
   manifest: PluginManifest;
   icon: ComponentType<{ size?: number }>;
@@ -187,4 +255,14 @@ export interface GlyphPlugin {
   itemTargets?: readonly ItemTarget[];
   tips?: (recentTitle: string | null) => Tip[];
   formatContext?: FormatContext;
+  /** The words offered on the lines of a note as it stands (pure: read on every change). */
+  suggest?: (noteId: string, body: string) => Suggestion[];
+  /**
+   * What its item marks link to, read back: a task's status and facts for the
+   * pill on the item and the card a tap opens (core/markDetails.ts). For marks
+   * named with the plugin's id.
+   */
+  marks?: MarkDetailsProvider;
+  /** Inline formattings of its own in every note: text between its delimiters, drawn its way. */
+  formats?: readonly InlineFormat[];
 }

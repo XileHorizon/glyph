@@ -627,8 +627,8 @@ mod tests {
         let first = segments(&events)[0].text.clone();
 
         let prompts = &streamer.transcriber.prompts;
-        assert_eq!(prompts[0], text::CUE_VOCABULARY, "nothing committed yet");
-        let after = format!("{} {first}", text::CUE_VOCABULARY);
+        assert_eq!(prompts[0], text::prompt("", PROMPT_CHARS), "nothing committed yet");
+        let after = text::prompt(&first, PROMPT_CHARS);
         assert!(prompts.contains(&after), "{prompts:#?}");
         assert!(prompts.iter().all(|p| p.starts_with(text::CUE_VOCABULARY)), "{prompts:#?}");
     }
@@ -791,7 +791,7 @@ mod tests {
         audio.extend(silence(1_500));
         run(&mut streamer, &audio);
         let after = &streamer.transcriber.prompts[before..];
-        let expected = format!("{} {}", text::CUE_VOCABULARY, segs[0].text);
+        let expected = text::prompt(&segs[0].text, PROMPT_CHARS);
         assert!(after.iter().all(|p| *p == expected), "{after:#?}");
     }
 

@@ -1,7 +1,7 @@
 /*
- * The tape at the top of a note: a small cassette on the left, the time,
- * Play and the Note / Transcript switch beside it. Short, so the note keeps the
- * screen.
+ * The tape at the top of a spoken note: a small cassette on the left, and
+ * beside it the time, Play, and Add and Remove for the audio. Short, so the
+ * note keeps the screen.
  */
 .tape {
   flex: none;
@@ -52,72 +52,50 @@
   color: var(--app-ink-3, var(--glacier-text-muted));
 }
 
-.controls {
+/* What to do with the audio, under Play: two quiet words, each with its mark; three while Remove is asking. */
+.edits {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--glacier-space-3);
+  gap: var(--glacier-space-1) var(--glacier-space-4);
 }
 
-/* Talking into the note: a pill when it is the only thing to do, a word beside Play. */
-.speak {
+.edit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  min-block-size: var(--glacier-space-8);
+  padding-inline: var(--glacier-space-1);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-muted);
+}
+
+.edit:active {
+  color: var(--glacier-text);
+}
+
+.play {
   display: inline-flex;
   align-items: center;
   gap: var(--glacier-space-2);
   min-block-size: var(--glacier-space-10);
   padding-inline: var(--glacier-space-4);
-  font-weight: var(--glacier-font-weight-semibold);
 }
 
-.speak:global(.app-word) {
-  padding-inline: var(--glacier-space-1);
+/* Remove, while it is asking: the word itself says what goes. */
+.edit[data-asking] {
   color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-bold);
 }
 
-/* The record dot, in the pill's colour. */
-.speakDot {
-  inline-size: 0.5em;
-  block-size: 0.5em;
-  border-radius: var(--glacier-radius-full);
-  background: currentColor;
-}
-
-.blank {
+/* What Remove would take with it: one quiet line under the controls. */
+.warning {
+  grid-column: 1 / -1;
+  margin: var(--glacier-space-1) 0 0;
   font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3, var(--glacier-text-muted));
-}
-
-/* A cassette never recorded on: the same tape, quieter, waiting. */
-.cassette[data-blank] {
-  opacity: 0.72;
-}
-
-.cassette[data-blank]:active {
-  opacity: 1;
-}
-
-.play {
-  min-block-size: var(--glacier-space-10);
-  padding-inline: var(--glacier-space-4);
-}
-
-.playMark,
-.pauseMark {
-  display: inline-block;
-  inline-size: 0.7em;
-  block-size: 0.7em;
-}
-
-/* A triangle and two bars, drawn with borders so they take the pill's colour. */
-.playMark {
-  inline-size: 0;
-  block-size: 0;
-  border-block: 0.4em solid transparent;
-  border-inline-start: 0.65em solid currentColor;
-}
-
-.pauseMark {
-  border-inline: 0.22em solid currentColor;
-  inline-size: 0.2em;
+  line-height: var(--glacier-leading-sm);
+  color: var(--glacier-text-muted);
 }
 
 /* A phrase's shape while the recording's words are still being read. */

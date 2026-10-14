@@ -1,31 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { archiveOrder, listOrder, notePreview, noteTitle, type Note } from './store.ts';
+import { archiveOrder, listOrder, noteTitle, type Note } from './store.ts';
 
 describe('the list labels', () => {
   it('titles a note by its first line, without heading marks', () => {
     expect(noteTitle('# Groceries\nmilk')).toBe('Groceries');
     expect(noteTitle('Plain first line')).toBe('Plain first line');
+    // A bookmark set on the first line is where the note opens, not part of its name.
+    expect(noteTitle('# Weekend trip §§\nmilk')).toBe('Weekend trip');
+    expect(noteTitle('Half §§ way')).toBe('Half way');
   });
 
-  it('previews the next line with inline marks taken out', () => {
-    expect(notePreview('Title\nSomething with **negative space** and one `strong` colour.')).toBe(
-      'Something with negative space and one strong colour.',
-    );
-    expect(notePreview('Title\n> _quiet_ words, ~~gone~~ here')).toBe('quiet words, gone here');
-  });
-
-  it('previews a task without its box', () => {
-    expect(notePreview('# Weekend trip\n\n- [ ] Book the cabin by Friday')).toBe('Book the cabin by Friday');
-    expect(notePreview('Title\n- [x] Done already')).toBe('Done already');
-  });
-
-  it('keeps underscores and asterisks that are inside words', () => {
-    expect(notePreview('Title\nsnake_case and 2*3*4')).toBe('snake_case and 2*3*4');
-  });
-
-  it('skips blank lines and bare markers', () => {
-    expect(notePreview('Title\n\n- \n- eggs')).toBe('eggs');
-  });
 });
 
 describe('the list order', () => {
@@ -46,5 +30,21 @@ describe('the list order', () => {
   it('shows the archive most recently archived first', () => {
     const notes = [note('a', 1, { archivedAt: 10 }), note('b', 2, { archivedAt: 20 }), note('live', 3)];
     expect(archiveOrder(notes).map((n) => n.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('a note that opens with front matter', () => {
+  it('is named by its own title key, not by the fence', () => {
+    expect(noteTitle('---\ntitle: The deposit\ntags: cabin\n---\n\nWords.')).toBe('The deposit');
+    expect(noteTitle('---\ntitle: "Quoted name"\n---\n\nWords.')).toBe('Quoted name');
+  });
+
+  it('falls back to the first words under the fence when there is no title key', () => {
+    expect(noteTitle('---\ntags: cabin\n---\n\n# The deposit\n\nWords.')).toBe('The deposit');
+  });
+
+  it('leaves a rule in the middle of a note alone, and an unclosed fence', () => {
+    expect(noteTitle('Words first\n\n---\n\nMore.')).toBe('Words first');
+    expect(noteTitle('---\nnot really front matter, just words\n\nMore.')).toBe('---');
   });
 });

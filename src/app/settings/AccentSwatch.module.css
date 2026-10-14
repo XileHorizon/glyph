@@ -1,0 +1,66 @@
+/*
+ * The accent swatch (AccentSwatch.tsx): the kit's accents as dots, each filled from the ramp that choosing it would
+ * give the app, with the app's own ink first. The same shape as the workspace swatch (notes/WorkspaceSwatch.module.css),
+ * since they are the same gesture in two places.
+ */
+
+.swatch {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-3) var(--glacier-space-4) var(--glacier-space-4);
+}
+
+.dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--glacier-radius-full, 999px);
+  /* The ramp's solid step, which is what an accent actually paints with. */
+  background: var(--glacier-accent-9);
+  color: var(--glacier-accent-contrast, var(--app-paper));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 160ms var(--glacier-ease-out, ease-out),
+    box-shadow 160ms var(--glacier-ease-out, ease-out);
+}
+
+/* Ink: the page's own, which is what choosing it does - no accent at all. */
+.dot[data-ink] {
+  background: var(--app-ink);
+  color: var(--app-paper);
+}
+
+/* Chosen: a ring of the page around it, then the dot's own colour again, so the dot keeps its colour whole. */
+.dot[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--app-paper),
+    0 0 0 4px var(--glacier-accent-9);
+  transform: scale(1.06);
+}
+
+.dot[data-ink][aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--app-paper),
+    0 0 0 4px var(--app-ink);
+}
+
+.dot:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring, var(--app-ink));
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot {
+    transition: none;
+  }
+
+  .dot[aria-checked='true'] {
+    transform: none;
+  }
+}

@@ -13,12 +13,17 @@
 }
 
 .top {
-  flex: none;
+  /* A pane over the note's page (app.css .app-headerPane), which runs under it; the body below keeps clear of it. */
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: 3;
   display: flex;
   align-items: baseline;
   gap: var(--glacier-space-4);
   min-block-size: var(--glacier-space-10);
-  padding-block-start: calc(var(--app-safe-top, 0px) + var(--glacier-space-3));
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-3)) var(--glacier-space-2);
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-3, var(--glacier-text-muted));
 }
@@ -54,7 +59,8 @@
   flex-direction: column;
   justify-content: flex-end;
   overflow: hidden;
-  padding-block: var(--glacier-space-4);
+  /* Under the top line's pane (`--recorder-top`, CaptureScreen.tsx). */
+  padding-block: calc(var(--recorder-top, 0px) + var(--glacier-space-4)) var(--glacier-space-4);
   /* The older words fade out at the top rather than stopping at an edge. */
   mask-image: linear-gradient(to bottom, transparent, black 45%);
 }
@@ -257,13 +263,6 @@
   pointer-events: none;
 }
 
-.doneMark {
-  inline-size: 0.7em;
-  block-size: 0.7em;
-  border-radius: 2px;
-  background: currentColor;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .pictureArc,
   .screen[data-phase='listening'] .pictureArc,
@@ -277,18 +276,7 @@
 
 /* ---- which note, and moving to another ------------------------------------------ */
 
-/*
- * The note being written on, above the words: its title in small capitals and
- * its last lines faint. It comes in with the words when they move.
- */
-.context {
-  flex: none;
-  display: grid;
-  gap: var(--glacier-space-1);
-  margin-block-end: var(--glacier-space-3);
-  animation: context-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
+/* A note's name in small capitals and its last lines faint: over the items landing in its list. */
 .contextTitle {
   margin: 0;
   font-size: var(--glacier-font-size-xs);
@@ -311,7 +299,7 @@
 @keyframes context-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
 }
 
@@ -458,6 +446,11 @@
 }
 
 /* Three dots breathing while the name is still being said. */
+/* The command model reading a command the rules couldn't: said quietly after the words. */
+.routeThinking {
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
 .routeDots {
   inline-size: 1.4em;
   block-size: 0.35em;
@@ -508,7 +501,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .context,
   .landing,
   .landed,
   .ghost,
@@ -528,7 +520,6 @@
 }
 
 /* Above the side key's rings (SideKeyWaves), which are behind everything. */
-.top,
 .body,
 .diagnostics,
 .route,
@@ -595,6 +586,34 @@
 }
 
 /* The table card's question: the one thing to answer, in the landing line's type. */
+/*
+ * The memo flow's recent notes (capture/memoFlow.ts), to say one of: numbered, since "the second one" picks one, and
+ * the one the words so far seem to mean drawn in ink while the rest wait in the quiet grey.
+ */
+.flowOptions {
+  display: grid;
+  gap: var(--glacier-space-1);
+  margin: 0;
+  padding-inline-start: 1.6em;
+  font-size: var(--glacier-font-size-md);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+.flowOption {
+  padding-inline-start: 0.2em;
+  transition: color 160ms ease-out;
+}
+
+.flowOption::marker {
+  color: var(--app-ink-4, var(--glacier-text-subtle));
+  font-variant-numeric: tabular-nums;
+}
+
+.flowOption[data-guess] {
+  color: var(--app-ink, var(--glacier-text));
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
 .tableQuestion {
   margin: 0;
   font-size: var(--glacier-font-size-lg);
@@ -629,4 +648,40 @@
 
 .table td {
   color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+/*
+ * The note's own page while it is spoken (LivePage.tsx): the editor as tall as its words, scrolled here, the older text
+ * above. The body stops being the bottom-aligned, faded tail it was.
+ */
+.body:has(> .livePage) {
+  justify-content: flex-start;
+  padding-block: 0;
+  mask-image: none;
+}
+
+.livePage {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-inline: calc(-1 * var(--app-gutter));
+  /* Its words start under the top line's pane (`--wisp-under`, art/wispEdge.ts). */
+  padding-block-start: var(--wisp-under, 0px);
+}
+
+/* How this take ends, quietly under the empty page. */
+.pageHint {
+  flex: none;
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+}
+
+/* Listening, before the first word: the ghost leaning toward the sound, under the page and over the hint. */
+.listenGhost {
+  margin-block: var(--glacier-space-6) var(--glacier-space-3);
+  pointer-events: none;
 }

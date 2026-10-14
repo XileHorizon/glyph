@@ -195,17 +195,6 @@ export function SettingsFootnote({ children }: { children: ReactNode }) {
   return <p className="setk-footnote">{children}</p>;
 }
 
-// --- the icon tile ----------------------------------------------------------
-
-/** One icon language: ink on paper-2, a small squircle. */
-export function IconTile({ children, size = 'md' }: { children: ReactNode; size?: 'sm' | 'md' | 'lg' }) {
-  return (
-    <span className="setk-tile" data-size={size}>
-      {children}
-    </span>
-  );
-}
-
 // --- a word that acts -------------------------------------------------------
 
 /** The quiet action a row carries: a word in ink, the app's own button. */

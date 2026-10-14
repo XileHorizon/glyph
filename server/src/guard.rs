@@ -65,8 +65,8 @@ pub fn client_ip(peer: IpAddr, forwarded_for: Option<&str>) -> IpAddr {
 /// by nature: Matt pauses, the phone sends, he carries on and pauses again. A
 /// window resetting on the minute lets forty requests through across its edge;
 /// a bucket holds the same average and never more than `capacity` in a row.
-pub struct RateLimiter {
-    buckets: HashMap<IpAddr, Bucket>,
+pub struct RateLimiter<K = IpAddr> {
+    buckets: HashMap<K, Bucket>,
     capacity: f64,
     per_second: f64,
     last_prune: Instant,
@@ -81,7 +81,9 @@ struct Bucket {
 /// untouched this long is full again anyway, so forgetting it changes nothing.
 const FORGET_AFTER: Duration = Duration::from_secs(600);
 
-impl RateLimiter {
+/// Keyed by anything, not only an address: sign-in is also limited per handle (src/accounts.rs), so a guesser
+/// spreading attempts across many addresses still meets one bucket per account.
+impl<K: Eq + std::hash::Hash> RateLimiter<K> {
     pub fn new(per_minute: u32, now: Instant) -> Self {
         Self {
             buckets: HashMap::new(),
@@ -92,7 +94,7 @@ impl RateLimiter {
     }
 
     /// Spend one request for `ip`, if it has one left.
-    pub fn take(&mut self, ip: IpAddr, now: Instant) -> bool {
+    pub fn take(&mut self, ip: K, now: Instant) -> bool {
         if now.duration_since(self.last_prune) > FORGET_AFTER {
             self.buckets.retain(|_, b| now.duration_since(b.last) < FORGET_AFTER);
             self.last_prune = now;
@@ -189,7 +191,7 @@ mod tests {
     fn allows_a_burst_of_twenty_then_refuses_until_it_refills() {
         let start = Instant::now();
         let ip: IpAddr = "203.0.113.9".parse().unwrap();
-        let mut limiter = RateLimiter::new(20, start);
+        let mut limiter = RateLimiter::<IpAddr>::new(20, start);
         for i in 0..20 {
             assert!(limiter.take(ip, start), "request {i} of the burst");
         }
@@ -216,7 +218,7 @@ mod tests {
     #[test]
     fn forgets_addresses_it_has_not_seen_for_ten_minutes() {
         let start = Instant::now();
-        let mut limiter = RateLimiter::new(20, start);
+        let mut limiter = RateLimiter::<IpAddr>::new(20, start);
         limiter.take("203.0.113.9".parse().unwrap(), start);
         limiter.take("198.51.100.1".parse().unwrap(), start + Duration::from_secs(700));
         assert_eq!(limiter.tracked(), 1);

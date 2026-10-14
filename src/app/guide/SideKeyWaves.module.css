@@ -1,0 +1,15 @@
+/*
+ * Waves from the side key (SideKeyWaves.tsx): a canvas fixed to the screen,
+ * under the page's words (a negative z-index in the guide's stacking context
+ * paints above its paper and below its content), taking no touch. Its colour
+ * is the ink, read by the drawing for the rings' strokes.
+ */
+.waves {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  inline-size: 100%;
+  block-size: 100%;
+  pointer-events: none;
+  color: var(--app-ink);
+}

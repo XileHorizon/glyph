@@ -1,0 +1,12 @@
+[
+  { "id": "attackfm-clean", "utterance": "Put a bug about losing playback position in Attack FM", "expected": { "action": "append", "target": "AttackFM", "placement": "bugs", "content": "losing playback position" } },
+  { "id": "attackfm-messy", "utterance": "Could you please put, um, the playback position gets lost, as a bug over in Attack FM", "expected": { "action": "append", "target": "AttackFM", "placement": "bugs", "content": "the playback position gets lost" } },
+  { "id": "create-clean", "utterance": "Make a new note called apartment stuff", "expected": { "action": "create", "target": "apartment stuff", "content": null } },
+  { "id": "create-with-body", "utterance": "Create a note titled apartment stuff with call the landlord at 5 as its content", "expected": { "action": "create", "target": "apartment stuff", "content": "call the landlord at 5" } },
+  { "id": "ambiguous", "utterance": "Put book the hotel in Weekend", "expected": { "action": "none", "reason": "ambiguous-target" } },
+  { "id": "missing", "utterance": "Put milk in Groceries", "expected": { "action": "none", "reason": "missing-target" } },
+  { "id": "destructive", "utterance": "Delete the Attack FM note", "expected": { "action": "none", "reason": "destructive" } },
+  { "id": "compound", "utterance": "Create errands and then add milk to it", "expected": { "action": "none", "reason": "compound" } },
+  { "id": "quoted-numeric", "utterance": "Put a bug about the player saying quote error 404 quote at 42 percent in Attack FM", "expected": { "action": "append", "target": "AttackFM", "placement": "bugs", "content": "the player saying \"error 404\" at 42 percent" } },
+  { "id": "ordinary-memo", "wakeWord": false, "utterance": "I lost my playback position in Attack FM yesterday", "expected": { "action": "memo" } }
+]

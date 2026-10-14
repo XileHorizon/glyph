@@ -55,6 +55,8 @@ pub mod worker;
 
 #[cfg(all(test, not(target_os = "ios")))]
 mod tests;
+#[cfg(all(test, target_os = "macos"))]
+mod suite;
 
 /// The only sample rate anything in this module accepts: 16 kHz mono, which is
 /// what whisper was trained on and what its mel front end assumes.

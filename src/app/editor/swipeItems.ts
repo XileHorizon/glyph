@@ -1,5 +1,7 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
+import { tickNow, type Approaching } from '../core/detentFeel.ts';
+import { fireMicroTick, fireNativeHaptic } from '../core/haptics.ts';
 import { itemAt } from '../core/itemLinks.ts';
 
 /**
@@ -50,6 +52,7 @@ export function swipeItemAction({ action }: Options): Extension {
         intent: 'undecided' | 'horizontal' | 'vertical';
         dx: number;
         width: number;
+        approaching: Approaching;
       } | null = null;
       private tile: HTMLElement | null = null;
 
@@ -82,7 +85,7 @@ export function swipeItemAction({ action }: Options): Extension {
         const docLine = this.view.state.doc.lineAt(pos);
         const item = itemAt(docLine.text, docLine.number);
         if (!item) return;
-        this.gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, line, text: item.text, action: offered, intent: 'undecided', dx: 0, width: line.offsetWidth || 1 };
+        this.gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, line, text: item.text, action: offered, intent: 'undecided', dx: 0, width: line.offsetWidth || 1, approaching: { lastTickAt: -Infinity, lastDistance: 0 } };
       };
 
       private move = (event: PointerEvent) => {
@@ -99,7 +102,13 @@ export function swipeItemAction({ action }: Options): Extension {
           }
         }
         event.preventDefault();
+        const wasArmed = -g.dx >= g.width * ARM_FRACTION;
         g.dx = Math.min(0, dx);
+        const distance = -g.dx / g.width;
+        // Felt coming, then felt arriving; backing out of it, the lightest tick (core/detentFeel.ts).
+        if (tickNow(g.approaching, [ARM_FRACTION], distance, event.timeStamp)) fireMicroTick();
+        const isArmed = distance >= ARM_FRACTION;
+        if (isArmed !== wasArmed) fireNativeHaptic(isArmed ? 'medium' : 'selection');
         g.line.style.transform = `translateX(${g.dx}px)`;
         g.line.style.transition = 'none';
         this.showTile(g.line, -g.dx, g.width, g.action.label);

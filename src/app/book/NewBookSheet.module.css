@@ -1,0 +1,147 @@
+/*
+ * The New book sheet (NewBookSheet.tsx): the note settings sheet's own shell (editor/NoteSettings.module.css), with
+ * the pages chosen so far as a short numbered list and the library's notes under a search, each a row that ticks.
+ */
+
+.sheet {
+  max-block-size: min(88dvh, 44rem);
+  overflow-y: auto;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-3);
+}
+
+.pages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md, 10px);
+}
+
+.page {
+  display: grid;
+  grid-template-columns: 1.4em 2em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-1) var(--glacier-space-2);
+  border-block-end: 1px solid var(--glacier-border-subtle);
+}
+
+.page:last-child {
+  border-block-end: 0;
+}
+
+.number {
+  color: var(--glacier-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.pageTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tools {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.tool {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2em;
+  block-size: 2em;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--glacier-text) 8%, transparent);
+  color: var(--glacier-text);
+}
+
+.tool:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.found {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-block-size: 14rem;
+  overflow-y: auto;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md, 10px);
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  inline-size: 100%;
+  padding: 0.5em 0.7em;
+  border: 0;
+  border-block-end: 1px solid var(--glacier-border-subtle);
+  background: transparent;
+  color: var(--glacier-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.pick:hover {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+}
+
+.pick[aria-pressed='true'] .pickMark {
+  background: var(--glacier-text);
+  color: var(--glacier-bg);
+  border-color: var(--glacier-text);
+}
+
+.pickMark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.25em;
+  block-size: 1.25em;
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: 999px;
+}
+
+.pickTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.none {
+  padding: 0.6em 0.8em;
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm, 0.875rem);
+}
+
+/* The grip a page is dragged by (rowDrag.ts). */
+.grip {
+  display: inline-grid;
+  place-items: center;
+  block-size: 2em;
+  color: var(--glacier-text-subtle, var(--glacier-text-muted));
+  cursor: grab;
+  touch-action: none;
+}
+
+.page[data-lifted] {
+  background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 6%);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+}

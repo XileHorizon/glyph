@@ -1,0 +1,235 @@
+/* The heads-up headline (HeadsUp.tsx): a big first line with a red flame behind its "AI", a smaller second line. */
+
+.headsUp {
+  margin: 0 0 var(--glacier-space-4);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: var(--app-tracking-display);
+}
+
+.big {
+  display: block;
+  font-size: calc(var(--app-display) * 0.86);
+  line-height: 0.95;
+}
+
+.small {
+  position: relative;
+  display: block;
+  margin-block-start: var(--glacier-space-2);
+  font-size: calc(var(--app-display) * 0.46);
+  line-height: 1;
+  color: var(--glacier-text-muted);
+}
+
+/* Holds its place so the lines don't jump as each piece types in. */
+.placeholder {
+  visibility: hidden;
+}
+
+.ai {
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+}
+
+.flame {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  bottom: 0.12em;
+  inline-size: 1.8em;
+  block-size: 1.8em;
+  translate: -50% 0;
+  transform-origin: 50% 100%;
+  opacity: 0;
+  scale: 0.2;
+  transition:
+    opacity 180ms ease-out,
+    scale 560ms cubic-bezier(0.2, 1.8, 0.4, 1);
+}
+
+.flame[data-lit] {
+  opacity: 1;
+  scale: 1;
+}
+
+/* The haze filter's home: takes no room. */
+.hazeDefs {
+  position: absolute;
+  inline-size: 0;
+  block-size: 0;
+  overflow: hidden;
+}
+
+/* Three flames nested, red outside, orange, a yellow heart, bottoms together, each flickering to its own beat. */
+.outer,
+.middle,
+.core {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  translate: -50% 0;
+  transform-origin: 50% 100%;
+}
+
+/* Their bottoms staggered up and apart, so the three don't narrow to one point under the word. */
+.outer {
+  inline-size: 100%;
+  block-size: 100%;
+  bottom: 0;
+  color: #d61f1f;
+  fill: #e5322d;
+  animation: flicker 760ms ease-in-out infinite alternate;
+}
+
+.middle {
+  inline-size: 70%;
+  block-size: 70%;
+  bottom: 14%;
+  left: 44%;
+  color: #f26b1d;
+  fill: #ff8a1f;
+  animation: flicker 560ms ease-in-out 90ms infinite alternate-reverse;
+}
+
+.core {
+  inline-size: 42%;
+  block-size: 42%;
+  bottom: 24%;
+  left: 55%;
+  color: #ffc629;
+  fill: #ffe14d;
+  animation: flicker 430ms ease-in-out 180ms infinite alternate;
+}
+
+@keyframes flicker {
+  0% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+  35% {
+    transform: scale(0.95, 1.07) skewX(-3deg);
+  }
+  70% {
+    transform: scale(1.04, 0.97) skewX(2deg);
+  }
+  100% {
+    transform: scale(0.98, 1.1) skewX(-1deg);
+  }
+}
+
+/* The punchline as it types, laid over its own hidden copy. */
+.typing {
+  position: absolute;
+  inset: 0;
+}
+
+.inlineDots {
+  white-space: nowrap;
+}
+
+/* The held breath before the AI: three dots, each popping in with its tap. */
+.dots {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  white-space: nowrap;
+}
+
+.dot {
+  display: inline-block;
+  margin-inline-end: 0.08em;
+  opacity: 0;
+  translate: 0 0.2em;
+  transition:
+    opacity 160ms ease-out,
+    translate 260ms cubic-bezier(0.2, 1.8, 0.4, 1);
+}
+
+.dot[data-shown] {
+  opacity: 1;
+  translate: 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flame,
+  .dot {
+    transition: none;
+  }
+
+
+
+  .outer,
+  .middle,
+  .core {
+    animation: none;
+  }
+}
+
+/*
+ * "stealing" brings the police (HeadsUp.tsx): red and blue light strobing
+ * across the whole page behind the words, and the word itself flashing red and
+ * blue, until the siren fades.
+ */
+.police {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation:
+    policeIn 260ms ease-out both,
+    siren 450ms steps(1, end) infinite;
+}
+
+.police[data-leaving] {
+  animation:
+    policeOut 500ms ease-in both,
+    siren 450ms steps(1, end) infinite;
+}
+
+@keyframes policeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes policeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes siren {
+  0% {
+    background: radial-gradient(75% 60% at 0% 25%, rgba(255, 36, 36, 0.6), transparent 70%);
+  }
+  50% {
+    background: radial-gradient(75% 60% at 100% 25%, rgba(40, 90, 255, 0.6), transparent 70%);
+  }
+}
+
+.stealing[data-siren] {
+  animation: stealingFlash 450ms steps(1, end) infinite;
+}
+
+@keyframes stealingFlash {
+  0% {
+    color: #ff3b30;
+  }
+  50% {
+    color: #3b82ff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .police,
+  .police[data-leaving],
+  .stealing[data-siren] {
+    animation: none;
+  }
+}

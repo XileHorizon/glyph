@@ -48,4 +48,7 @@ export const isNativeMobile = isTauri() && isMobile;
  */
 if (typeof document !== 'undefined') {
   document.documentElement.dataset.platform = isAndroid ? 'android' : isIOS ? 'ios' : 'desktop';
+  // The Mac app draws under a transparent title bar with the window buttons inset into it (src-tauri/src/lib.rs,
+  // `set_traffic_lights_inset`): the page keeps that bar clear and lets it drag the window (app.css).
+  if (isTauri() && !isMobile && /Macintosh/i.test(userAgent())) document.documentElement.dataset.titlebar = 'overlay';
 }

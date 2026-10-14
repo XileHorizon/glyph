@@ -1,0 +1,79 @@
+/*
+ * The note drawn small on a card (notes/NotePeek.tsx): the note's own editor, in the formatted view, at a fraction of
+ * its size, clipped to a few lines and taking no taps. The type sizes the editor reads (`--app-body`, `--app-h1` to
+ * `--app-h6`; app.css, editor/Editor.module.css) are redefined here at the same ratios, so a heading is still a
+ * heading against the words, only small.
+ */
+
+.peek {
+  /* Roughly the kit's smallest reading size against the note's body size, keeping the reader's own text-size setting. */
+  --peek-scale: calc(0.62 * var(--app-text-scale, 1));
+  --app-body: calc(var(--glacier-font-size-lg) * var(--peek-scale));
+  --app-h1: calc(var(--glacier-font-size-3xl) * var(--peek-scale));
+  --app-h2: calc(var(--glacier-font-size-2xl) * var(--peek-scale));
+  --app-h3: calc(var(--glacier-font-size-xl) * var(--peek-scale));
+  --app-h4: calc(var(--glacier-font-size-lg) * var(--peek-scale));
+  --app-h5: calc(var(--glacier-font-size-lg) * var(--peek-scale));
+  --app-h6: calc(var(--glacier-font-size-md) * var(--peek-scale));
+  display: block;
+  /*
+   * Never wider than what holds it: a grid item's `min-width` is `auto`, and a card laid out as a grid let the preview
+   * grow past its cell.
+   */
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  /*
+   * As tall as its lines, up to about six of the words; whatever does not fit is cut off, not scrolled. In the words'
+   * own em, so the cap holds wherever the card is (Matt: "the preview is rendering the whole note not just a small
+   * preview").
+   */
+  font-size: var(--app-body);
+  /* The page's gutter is the page's: on a card the words start at the card's edge, and a list's hang still hangs. */
+  --app-gutter: 0px;
+  max-block-size: calc(1.6em * 6.2);
+  margin-block-start: var(--glacier-space-2);
+  overflow: hidden;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  pointer-events: none;
+  user-select: none;
+}
+
+/* More below the edge: the last line goes to nothing, as a mask and never a painted shadow. */
+.peek[data-clipped] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.8em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.8em), transparent);
+}
+
+/*
+ * The card shows through (Matt: "the background and stuff should be transparent on the formatted preview"): the
+ * editor paints the page's paper under its words, and a block of code or a table's header its own fill, which on a
+ * card is a card on a card. The words keep the page's marks; only the grounds go.
+ */
+.peek :global(.cm-editor) {
+  background: transparent;
+  color: inherit;
+}
+
+.peek :global(.cm-editor .cm-scroller .cm-line[class*='lineCode']) {
+  background: transparent;
+  margin-inline: 0;
+}
+
+.peek :global(.cm-editor .cm-glyphTable th) {
+  background: transparent;
+}
+
+/* The editor's own paddings are a page's; on a card there is none, and the words start at the card's edge. */
+.peek :global(.cm-editor .cm-content) {
+  padding: 0;
+}
+
+.peek :global(.cm-editor .cm-scroller) {
+  overflow: hidden;
+}
+
+/* Growing with its lines (Editor's `grow`), the card clips it; the editor's own height is its lines', not the card's. */
+.peek :global(.cm-editor[data-grow]),
+.peek > :global([data-grow]) {
+  flex: none;
+}

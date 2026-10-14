@@ -1,0 +1,54 @@
+/*
+ * The workspace colour swatch (WorkspaceSwatch.tsx): the hues as dots in a row, each filled with its own colour at
+ * the lightness this paper needs (ink.css `[data-hue]`), the chosen one ticked in the paper's colour.
+ */
+
+/* One row, however narrow the sheet: the dots share what room there is rather than wrapping to a second line. */
+.swatch {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-3) var(--glacier-space-4) var(--glacier-space-4);
+}
+
+.dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  /* A thumb's worth of target, whatever the dot inside it looks like. */
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--glacier-radius-full, 999px);
+  background: var(--app-space, var(--app-ink));
+  color: var(--app-paper);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 160ms var(--glacier-ease-out, ease-out),
+    box-shadow 160ms var(--glacier-ease-out, ease-out);
+}
+
+/* Chosen: a ring of the page around it, so the dot itself keeps its colour whole. */
+.dot[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--app-paper),
+    0 0 0 4px var(--app-space, var(--app-ink));
+  transform: scale(1.06);
+}
+
+.dot:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring, var(--app-ink));
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot {
+    transition: none;
+  }
+
+  .dot[aria-checked='true'] {
+    transform: none;
+  }
+}

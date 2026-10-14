@@ -3,18 +3,22 @@ import { ChevronRight } from '@glacier/icons';
 import { ArrowLeft } from '../art/Icons.tsx';
 import { onBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
+import { useWispEdge } from '../art/wispEdge.ts';
 import './settings.css';
 
 /**
  * The settings surface: a full-screen page that opens on the list of
  * sections and pushes into one. The shape is AttackFM's MobileSettings; the
- * words are Glyph's: "Settings" as the page's display word over the clustered
- * list, a section's own word over its pane, and `← Settings` to come back.
+ * words are Glyph's: `← Notes` in the top bar to leave, "Settings" as the
+ * page's title over the clustered list, a section's own word over its pane,
+ * and `← Settings` to come back out of one. Both titles are title-sized rather
+ * than display-sized, so the rows start near the top (Matt: "add back button
+ * at the top of settings and make settings header smaller … make settings in
+ * top bar like the ← notes").
  *
- * No Done word. The page leaves the way a person came: the phone's back
- * gesture, or a swipe to the right across it, steps out of a pane and then
- * closes the page; a swipe to the left goes forward again, back into the pane
- * just left. One handler, registered while the page is open, answers by depth.
+ * The page can also be left the way a person came: the phone's back gesture,
+ * or a swipe to the right across it, steps out of a pane and then closes the
+ * page; a swipe to the left goes forward again, back into the pane just left. One handler, registered while the page is open, answers by depth.
  * Every fresh open lands on the list, and the rows arrive one after another.
  */
 
@@ -45,6 +49,8 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
   // The pane a back step just left, for a forward swipe to return to.
   const [left, setLeft] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  // The list or the pane showing goes to smoke under its header (art/wispEdge.ts).
+  const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -99,6 +105,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
   }, [open, back]);
 
   useSwipeNav(root, { onBack: back, onForward: forward }, open);
+  useWispEdge(scroller, open && (active?.id ?? 'list'));
 
   if (!open) return null;
 
@@ -119,16 +126,26 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
               <ArrowLeft /> Settings
             </button>
           </header>
-          <div className="settingsScreen__pane" key={active.id}>
+          <div ref={scroller} className="settingsScreen__pane" key={active.id}>
             <h1 className="settingsScreen__display">{active.label}</h1>
             {active.content}
           </div>
         </>
       ) : (
         <>
-          <header className="settingsScreen__head" aria-hidden="true" />
-          <nav className="settingsScreen__list" key="list">
-            <h1 className="settingsScreen__display">Settings</h1>
+          {/*
+            The way out and the screen's name in one row (Matt: "move settings back arrow next to settings label,
+            replace the back to notes with just putting the settings text there, remove some of the space on the
+            top"). It read "← Notes" over a display-sized "Settings" underneath, which named the screen twice and
+            spent a third of the first page saying so. The arrow still leaves for the notes, which is what it is
+            told to say aloud.
+          */}
+          <header className="settingsScreen__head">
+            <button type="button" className="app-word settingsScreen__headWord" onClick={onClose} aria-label="Back to your notes">
+              <ArrowLeft /> Settings
+            </button>
+          </header>
+          <nav ref={scroller} className="settingsScreen__list" key="list">
             {clusters.map((cluster) => (
               <div key={cluster[0]!.id} className="settingsScreen__cluster">
                 <div className="settingsScreen__group">

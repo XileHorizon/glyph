@@ -1,5 +1,6 @@
-import { generate, MODELS, type Phase, type Run } from '../core/ai.ts';
+import { generate, MODELS, type Hardware, type Phase, type Run } from '../core/ai.ts';
 import { pluginContextFor, pluginContextVersion } from '../plugins/registry.ts';
+import { cleanNote, cleanRewrite } from './clean.ts';
 import { bodyHash, tidy, type Kept } from './formatter.ts';
 import { protectLinks, restoreLinks } from './links.ts';
 import type { Mode } from './modes.ts';
@@ -42,6 +43,8 @@ export interface PipelineProgress {
   outputTokens: number;
   tokensPerSecond: number;
   elapsedMs: number;
+  /** The phone under the model, from a binary that reports it. */
+  hardware?: Hardware | null;
 }
 
 export interface PassLanded {
@@ -176,7 +179,8 @@ export function runPipeline(id: string, body: string, passes: readonly string[],
   // Tables and links go in as tokens the model can copy, and come back out
   // (tables.ts, links.ts): tables first, so a link in a cell is inside the
   // block; and back in reverse. A summary may leave a table out.
-  const { text: withoutTables, tables } = protectTables(body);
+  // The note as the model should see it (clean.ts): the hash stays the note's own.
+  const { text: withoutTables, tables } = protectTables(cleanNote(body));
   const { text: protectedBody, links } = protectLinks(withoutTables);
   const restore = (text: string, final: boolean) => restoreTables(restoreLinks(text, links, final), tables, final, mode !== 'summarize');
   const entry = { cancel: () => undefined, progress: null as PipelineProgress | null, done: Promise.resolve() };
@@ -226,13 +230,14 @@ export function runPipeline(id: string, body: string, passes: readonly string[],
               outputTokens: p.outputTokens,
               tokensPerSecond: p.tokensPerSecond,
               elapsedMs: p.elapsedMs,
+              hardware: p.hardware ?? null,
             });
             publish({ kind: 'progress', progress: entry.progress });
           },
         });
         const output = await current.done;
         current = null;
-        const text = tidy(restore(tidy(output.text), true));
+        const text = tidy(cleanRewrite(restore(tidy(output.text), true)));
         await keepResult(id, mode, text, hash, model).catch((failure: unknown) => console.warn('[glyph] result not kept:', failure));
         publish({ kind: 'landed', landed: { id, mode, text, model, hash, ms: output.ms, truncated: output.truncated, next: stopped ? null : next } });
       }

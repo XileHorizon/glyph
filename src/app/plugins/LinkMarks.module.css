@@ -1,0 +1,126 @@
+/*
+ * A note's link marks (LinkMarks.tsx): the plugin's mark in a ring, and the
+ * name of the thing beside it, in the quiet ink the note's small print uses.
+ * On the note it is a row under the tape, tappable; on a list row the marks
+ * alone, inline after the time.
+ */
+
+.row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-2) var(--glacier-space-3);
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.row {
+  cursor: pointer;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: 0 var(--glacier-space-2);
+}
+
+button.row:active {
+  color: var(--app-ink, var(--glacier-text));
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.4;
+}
+
+/*
+ * The workspace the note is in: the home page's pill (notes/WorkspaceBar.module.css `.space`), outlined in its hue,
+ * at the row's own size so it sits level with the marks beside it.
+ */
+.space {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45em 0.65em;
+  border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
+  border-radius: var(--glacier-radius-full, 999px);
+  color: var(--app-space, var(--app-ink-2));
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  max-inline-size: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The plugin's mark in a ring, the way the header draws its cog. */
+.icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.5em;
+  block-size: 1.5em;
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-radius: var(--glacier-radius-full, 999px);
+  font-size: 0.85em;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-inline-size: 14rem;
+}
+
+/*
+ * On a list row: the marks alone, inline after the time and the workspace's badge.
+ *
+ * The ring is the height of that badge (the notes list's `.rowSpace`, since removed with the list), because the two sit side by side and
+ * are read as one row of marks - a 14.5px ring beside a 24.7px badge read as two different things on one line, which
+ * is what Matt saw: "the integration bubbles are not inline with the pill that shows the workspace". They were
+ * already centred on each other to the pixel; it was the size that was out.
+ *
+ * Sized from the meta line's own em rather than the mark's, so the ring and the badge grow together with the text
+ * scale instead of drifting apart. `vertical-align` is gone with it: the meta line is a flex row, where it does
+ * nothing, and it was a hand-tuned nudge from when the badge was a smaller outline.
+ */
+.row[data-compact] {
+  gap: 0.35em;
+  margin-inline-start: 0.5em;
+}
+
+.mark[data-compact] .icon {
+  /*
+   * The badge's own height, derived rather than copied: it is set in the meta line's type size (`--glacier-font-size-xs`)
+   * with `padding: 0.52em 0.8em`, so its box is one line plus 1.04em. Sizing the ring from the same token in the same
+   * terms means a change to either follows through to both, instead of a number here going stale the moment the badge
+   * moves - which is how it ended up mismatched in the first place.
+   */
+  font-size: var(--glacier-font-size-xs);
+  inline-size: calc(1.2em + 1.04em);
+  block-size: calc(1.2em + 1.04em);
+  border-width: 1px;
+}
+
+/* The glyph inside keeps its old size; only the ring around it grew to meet the badge. */
+.mark[data-compact] .icon svg {
+  inline-size: 1.1em;
+  block-size: 1.1em;
+}
+
+/* Read by assistive tech, not seen: the name behind a compact mark. */
+.hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

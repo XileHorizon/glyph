@@ -1,0 +1,564 @@
+/*
+ * The home page (HomeScreen.tsx): its glass bar, its scroller and its dock, which it took over from the notes list it
+ * replaced, and then the date, the cards and the to-dos.
+ */
+
+.screen {
+  position: relative;
+  block-size: 100dvh;
+  background: var(--glacier-bg);
+}
+
+/*
+ * One scroller for the title and the notes together, so the big title leaves
+ * with the first flick. The end padding is the dock's height plus its fade,
+ * so the last note can be scrolled clear of Write and Speak.
+ */
+.scroll {
+  block-size: 100%;
+  /*
+   * Under the top bar, which is a pane over this (app.css .app-headerPane, art/wispEdge.ts sets `--wisp-under`), and
+   * a space clear of it: flush against the pane, the first thing on the list reads as cut off by it (the guide's
+   * scroller has always left this room).
+   *
+   * Floored at the bar's own height, never only at the measured one. `--wisp-under` is written by a size observer,
+   * so it can be a frame late or a state behind - and on the Mac it was: the title bar's 44px inset landed after the
+   * header had been measured, the padding stayed at the height of a header without it, and the workspace pills sat
+   * under the bar (Matt: "on the home screen the top bar overlaps the workspace pills"). The old fallback was a flat
+   * 3.2rem, which had no relation to how tall the bar actually is and was wrong the moment the bar grew a second
+   * row. `--app-safe-top` is that height, known without measuring anything, so the list can never begin above it.
+   */
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-6));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block-end: calc(var(--app-safe-bottom, 0px) + var(--glacier-space-24));
+}
+
+/*
+ * The top bar: no word at all.
+ *
+ * It held "Notes" - first as a display-sized title, then as one small word
+ * (Matt: "change 'Notes' on the home page to be way smaller, the title is too
+ * big") - and now as nothing (Matt: "remove the 'notes' header on the homepage
+ * it's redundant at this point"). What is left is the pane itself, which is
+ * the glass the app's tab bar sits on and the edge the notes go to smoke
+ * against; its height is the tab bar's, because it pads by `--app-safe-top`
+ * and the bar's height lives in that (app.css).
+ */
+.topBar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--glacier-space-2);
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: calc(var(--app-safe-top, 0px) + var(--glacier-space-1)) var(--glacier-space-2);
+}
+
+/*
+ * Where the bar holds only that unseen name, the pane is exactly the bar's height, so the blur ends on
+ * the tabs' own line (Matt: "There is extra blur space below the tabs"). The padding above is for a row that is not
+ * there: a space-1 over it and a space-2 under, which drew a strip of frosted nothing under the tabs - measured 13.4px
+ * on a phone, bar 0-91 and pane 0-104.4 - before the wisp began. The page keeps that room below as its own, so the
+ * pills stay exactly where they were.
+ */
+.topBar:has(> .saidOnly:only-child) {
+  padding-block: var(--app-safe-top, 0px) 0;
+}
+
+.topBar:has(> .saidOnly:only-child) ~ .scroll {
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top, 0px)) + var(--glacier-space-1) + var(--glacier-space-2) + var(--glacier-space-6));
+}
+
+/* The screen's name for a screen reader alone: the page has no visible title (HomeScreen.tsx). */
+.saidOnly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * The heading over a group of notes - Pinned, then Others. Spaced capitals a
+ * step below the titles, in the second ink, with the pin on the Pinned one:
+ * the one mark for the whole group, so no row needs its own.
+ */
+.group {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: var(--glacier-space-6) 0 var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+/* The pin, once, on the heading: tilted the way it used to sit on each row. */
+.groupIcon {
+  font-size: 1.15em;
+  transform: rotate(-12deg);
+}
+
+.empty {
+  padding-block: var(--glacier-space-6) var(--glacier-space-8);
+}
+
+/* The empty page's ghost (art/Ghost.tsx), in grey under the words' weight. */
+.emptyArt {
+  display: block;
+  margin-block-end: var(--glacier-space-5);
+  color: var(--app-ink-3);
+}
+
+/*
+ * Stacked over its words, as on a phone, the ghost leaves them room above the dock: measured at 375x812, a ghost held
+ * to 45% of the height put the second line of words 12px under the dock's buttons. Beside its words (below) it may
+ * have the full 45% again.
+ */
+.empty > .emptyArt[data-size] {
+  inline-size: min(100%, 36rem, calc(38dvh * var(--ghost-ratio, 1)));
+}
+
+/*
+ * On a page wide enough, the ghost and its words sit side by side. At the ghost's full size (Matt: "the graphics are
+ * too small they should take up at least 4x more space") a stack put "A blank page." at the foot of a laptop screen,
+ * under the foot's smoke; beside the ghost the words are at its middle, where they are read.
+ */
+@container home-page (min-width: 44rem) {
+  .empty {
+    display: grid;
+    /* Set proportions rather than an auto column: the ghost fills its column's width, and a width of 100% needs a
+       column whose size does not depend on the ghost. */
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-rows: auto auto;
+    column-gap: var(--glacier-space-6);
+    align-content: center;
+  }
+
+  .empty > .emptyArt[data-size] {
+    grid-row: 1 / span 2;
+    margin-block-end: 0;
+    inline-size: min(100%, 36rem, calc(45dvh * var(--ghost-ratio, 1)));
+  }
+
+  .emptyLead {
+    align-self: end;
+  }
+
+  .emptyHint {
+    align-self: start;
+  }
+}
+
+.emptyLead {
+  margin: 0;
+  font-size: var(--glacier-font-size-3xl);
+  line-height: var(--glacier-leading-3xl);
+  letter-spacing: var(--app-tracking-title);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+}
+
+.emptyHint {
+  margin: var(--glacier-space-3) 0 0;
+  max-inline-size: 28ch;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--glacier-text-muted);
+}
+
+/*
+ * Write and Speak, fixed to the bottom where the thumb is. The dock has no
+ * ground of its own - not a bar, not a shadow, not glass (Matt: "Make the
+ * bottom bar transparent and move the dark gradient down"): the notes run on
+ * under the buttons, and go to smoke only at the page's very foot
+ * (art/wispEdge.ts).
+ */
+.dock {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding-inline: calc(var(--app-safe-left, 0px) + var(--app-gutter)) calc(var(--app-safe-right, 0px) + var(--app-gutter));
+  padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-3));
+  pointer-events: none;
+}
+
+
+/*
+ * Speak is the screen's one ink pill: the thing Glyph is for, where the thumb
+ * already is. Type stays a word beside it.
+ */
+.speak {
+  pointer-events: auto;
+  /* A size smaller than it was, with the rings beside it (Matt: "the speak new note and settings button can be a
+     size smaller"). The same height as the rings, set rather than left to the pill's padding, so the three still
+     sit on one line. */
+  /* The shared pill sets a minimum height (app/ink.css .app-pill); this one is shorter, so the minimum is lowered too. */
+  /* A notch smaller again, with the two rings (Matt: "Make the bookmark, more button, speak and book a little bit
+     smaller"): a kit step multiplied, so the three still sit on one line. */
+  min-block-size: calc(var(--glacier-space-10) * 0.88);
+  block-size: calc(var(--glacier-space-10) * 0.88);
+  padding-block: 0;
+  padding-inline: var(--glacier-space-4);
+  font-size: var(--glacier-font-size-md);
+}
+
+/*
+ * The + and the cog: an icon in a ring the height of the Speak pill, there but
+ * a step quieter than the one filled thing on the screen. Each gives a small
+ * turn when pressed.
+ */
+.round {
+  pointer-events: auto;
+  appearance: none;
+  display: grid;
+  place-items: center;
+  /* The same notch as Speak beside it, so the three keep one height. */
+  inline-size: calc(var(--glacier-space-10) * 0.88);
+  block-size: calc(var(--glacier-space-10) * 0.88);
+  padding: 0;
+  border: 1.5px solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-full);
+  background: var(--glacier-bg);
+  color: var(--glacier-text);
+  font-size: 1.15rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.round svg {
+  transition: transform 420ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.round:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/*
+ * A new note. The + used to be set a touch heavier than the cog, since it starts something, and that one exception
+ * was the whole of what Matt could see: "make the talk new and settings buttons the same size". The three boxes were
+ * already one size and have been for a while - 40x40 on a phone, 46x46 on a desktop, measured - but inside them the
+ * glyphs drew 21px, 18px and 16px, so the row read as three sizes. The + now takes the size `.round` sets, which is
+ * the cog's.
+ */
+.add {
+  justify-self: start;
+}
+
+.add:active svg {
+  transform: rotate(90deg);
+}
+
+.cog {
+  justify-self: end;
+}
+
+.cog:active svg {
+  transform: rotate(45deg);
+}
+
+/*
+ * One column a reader's width, in the middle of a wide window: on a desktop the page ran the whole window across, and
+ * a card or a notice two thousand pixels wide reads as a banner rather than as something to pick up.
+ */
+.page {
+  max-inline-size: 60rem;
+  margin-inline: auto;
+  /* Measured by the empty state, which lays its ghost beside its words when the page is wide (`.empty`). */
+  container: home-page / inline-size;
+}
+
+/* Today, quietly, where the page begins: the one line that is about now rather than about a note. */
+.today {
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2, var(--glacier-text-muted));
+}
+
+/*
+ * The notes as cards, each the note itself drawn small (notes/NotePeek.tsx), as the sidebar has them. As many to a row
+ * as fit a readable width: one on a phone, two or three on the Fold opened out and on a desktop window.
+ */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--glacier-space-3);
+}
+
+/* Arriving one after another, a beat apart, the way the list's rows did. */
+.cardItem {
+  display: flex;
+  animation: arrive 360ms var(--glacier-ease-out, ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.card {
+  appearance: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  padding: var(--glacier-space-4);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg, 16px);
+  background: color-mix(in oklch, var(--app-ink, currentColor) 3%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card:hover {
+  background: color-mix(in oklch, var(--app-ink, currentColor) 6%, transparent);
+}
+
+.card:active .cardTitle {
+  color: var(--glacier-text-muted);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.cardTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--glacier-font-size-lg);
+  line-height: 1.2;
+  font-weight: var(--glacier-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.cardTitle[data-untitled] {
+  color: var(--glacier-text-subtle);
+}
+
+/*
+ * The gist: what the note is about in one line, written on the phone (format/gist.ts), so it fades in under the title
+ * a moment after the card. Two lines at most - the preview below it is the note itself, and wants the room.
+ */
+.cardGist {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-3, var(--glacier-text-muted));
+  overflow-wrap: anywhere;
+  animation: gist-in 260ms var(--glacier-ease-out, ease-out) both;
+}
+
+@keyframes gist-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The preview takes the room there is, so the dates of a row of cards line up along their feet. */
+.cardPeek {
+  flex: 1;
+}
+
+.cardWhen {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+}
+
+/* How many to-dos are open, beside the heading, in the heading's own quiet. */
+.count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-3);
+  padding-block: var(--glacier-space-3);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+/* The note's own box, as the editor draws a to-do: an empty square, ticked from here with one tap. */
+.box {
+  appearance: none;
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-block-start: 0.1rem;
+  padding: 0;
+  border: 2px solid var(--app-ink-2, var(--glacier-text-muted));
+  border-radius: var(--glacier-radius-xs, 5px);
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.box:hover {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.box:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.taskOpen {
+  appearance: none;
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.taskText {
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* Which note it came from, so a to-do read out of its place still says where it lives. */
+.taskNote {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--glacier-text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more {
+  margin: var(--glacier-space-2) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-subtle);
+}
+
+.allNotes {
+  display: block;
+  margin-block-start: var(--glacier-space-6);
+  padding-block: var(--glacier-space-3);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  inline-size: 100%;
+  text-align: start;
+  font-size: var(--glacier-font-size-md);
+  color: var(--glacier-text-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardItem,
+  .cardGist {
+    animation: none;
+  }
+}
+
+/* Every to-do ticked (HomeScreen.tsx `allDone`): the ghost on its checkbox, and one line. */
+.allDoneArt {
+  margin-block: var(--glacier-space-2) var(--glacier-space-3);
+}
+
+.allDoneWords {
+  margin: 0 0 var(--glacier-space-6);
+  font-size: var(--glacier-font-size-md);
+  color: var(--glacier-text-muted);
+}
+
+/* The Library's mark stands straight; the pin above it leans. */
+.groupIconStill {
+  font-size: 1.15em;
+}
+
+/* A book's card: how many pages, then the first few as its index, in the card's own quiet type. */
+.bookMeta {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+}
+
+.bookPages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+}
+
+.bookPages li {
+  display: flex;
+  gap: 0.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookPages li[data-depth='1'] {
+  padding-inline-start: 1.2em;
+}
+
+.bookPageNumber {
+  flex: none;
+  min-inline-size: 1.2em;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  color: var(--glacier-text-subtle);
+}
+
+.bookMore {
+  font-style: italic;
+}
+
+/* A page of a book, on its card: the mark and the book's name. */
+.cardBook {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-xs, 0.75rem);
+  color: var(--glacier-text-muted);
+}
+
+.cardBookName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

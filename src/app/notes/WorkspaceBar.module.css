@@ -1,0 +1,91 @@
+/*
+ * Workspaces (WorkspaceBar.tsx): a row of names under the title, once there
+ * is one. Outlined words a step smaller than the rows, the way a suggestion
+ * sits in a note, so the row reads as a filter and not as more notes; the
+ * chosen one is solid ink. The row scrolls sideways past the gutter rather
+ * than wrapping, so it stays one line however many there are.
+ */
+.spaces {
+  display: flex;
+  /* Each pill at its own height, or the tallest (the +) would stretch the rest and give them a taller ring than the
+     sides they were matched to. */
+  align-items: center;
+  gap: var(--glacier-space-2);
+  /* No pull upwards: it used to sit the pills a space higher, which put their tops under the header pane and cut
+     them off (Matt: "the notes header is clipping the pills and stuff below it"). */
+  margin: 0 0 var(--glacier-space-5);
+  padding-block: 2px;
+  /*
+   * Out to the edge of the column it scrolls in, both ends (Matt: "Sidebar on desktop should have workspace pills
+   * scrolling to edge of container"). The row sat inside the list's gutter, so pills scrolled past were cut 27px short of
+   * the sidebar's edge with a dead strip beyond - measured at 1280, the row ended at 352.7 in a 380px column. The same
+   * bleed the tab row uses (notes/NoteTabs.module.css `.tabs`): pulled out by the gutter the list pads by, and given
+   * the same back inside, so the first pill still lines up with the notes under it. The gutter tokens are the list's
+   * own padding (`.scroll` above), in the sidebar and on a phone alike, so it reaches the edge of whichever it is in.
+   */
+  margin-inline: calc(-1 * var(--app-gutter-start)) calc(-1 * var(--app-gutter-end));
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.spaces::-webkit-scrollbar {
+  display: none;
+}
+
+.space {
+  appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2rem;
+  /*
+   * An even ring of space round the word (Matt: "Workspace pill doesn't have same left and right padding as top and
+   * bottom around the outside"). It was 17.8px at the sides against 8px above and below, so a pill read as a long
+   * box rather than a badge. In ems, so the ring holds at every text size; the min height keeps the tap target.
+   */
+  padding: 0.6em;
+  /* A workspace's own colour, or the page's ink where it has none (ink.css `[data-hue]`). */
+  border: 1px solid color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--app-space, var(--app-ink-2));
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  /*
+   * After `font: inherit`, which is a shorthand and would reset it: the line box is pinned to the words themselves,
+   * so the ring the eye sees is the padding rather than the font's own slack above and below.
+   */
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.space:active {
+  color: var(--app-ink);
+}
+
+/* The one chosen is filled with its colour, and its words take the paper's, so the pill reads at a glance. */
+.space[aria-pressed='true'] {
+  background: var(--app-space, var(--app-ink));
+  border-color: var(--app-space, var(--app-ink));
+  color: var(--app-paper);
+}
+
+.space:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The + for another: a square-ish pill so the stroke sits centred. */
+.spaceAdd {
+  /* A round button the size of a pill, rather than a pill with one character in it: the + is a stroke, not a word,
+     so an even ring round it means a square box the height of its neighbours. */
+  justify-content: center;
+  inline-size: 2rem;
+  padding: 0;
+  font-size: var(--glacier-font-size-md);
+}

@@ -1,0 +1,1077 @@
+/*
+ * The heads-up gags (AntiAiStage.tsx). Every scene's movements are CSS
+ * keyframes over `--beat`, the length of the beat it plays in, so their
+ * percentages are moments in the joke: the club lands at 34%, the lake has
+ * turned by 70%, the brain is a pea by 68%. SVG parts turn about points in the
+ * drawing's own coordinates (transform-box: view-box).
+ */
+
+.stage {
+  display: grid;
+  gap: var(--glacier-space-3);
+  margin-inline: calc(-1 * var(--app-gutter));
+  padding-inline: var(--app-gutter);
+}
+
+/* The page's own ink, so the drawings follow Light and Dark; the red of the no symbol is the same everywhere. */
+.stage {
+  --no: #ff3b30;
+}
+
+.scene {
+  color: var(--app-ink, var(--glacier-text));
+  display: block;
+  inline-size: 100%;
+  max-block-size: 14rem;
+  overflow: visible;
+}
+
+.scene * {
+  transform-box: view-box;
+}
+
+/* ---- the words under it -------------------------------------------------------------------- */
+
+.caption {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  min-block-size: 4.6rem;
+  animation: captionIn 320ms var(--glacier-ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
+}
+
+@keyframes captionIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: 50%;
+  color: var(--app-paper, var(--glacier-bg));
+  background: var(--app-ink, var(--glacier-text));
+}
+
+.badgeBan {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+  color: var(--no, #ff3b30);
+  opacity: 0;
+  filter: drop-shadow(0 0 0 var(--app-paper, #fff)) drop-shadow(0 0 1.5px var(--app-paper, #fff));
+}
+
+.badgeBan {
+  animation: badgeBan 700ms var(--slap, 0ms) both;
+}
+
+@keyframes badgeBan {
+  0% {
+    opacity: 0;
+    scale: 1.8;
+  }
+  60% {
+    opacity: 1;
+    scale: 0.9;
+  }
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.title {
+  display: block;
+  font-size: var(--glacier-font-size-2xl);
+  font-weight: var(--glacier-font-weight-bold);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--glacier-text);
+}
+
+/* The caption's words: every playing gag's text stacked in one cell, so its height is the tallest of them. */
+.wordsCell {
+  display: grid;
+}
+
+.wordsCell > * {
+  grid-area: 1 / 1;
+}
+
+/* Holds a line's room while it waits to type in, so the caption doesn't jump. */
+.placeholder {
+  visibility: hidden;
+}
+
+.line {
+  display: block;
+  margin-block-start: 0.25em;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.35;
+  color: var(--glacier-text-muted);
+  animation: captionIn 360ms 180ms var(--glacier-ease-out, ease-out) both;
+}
+
+/* ---- no --------------------------------------------------------------------------------------- */
+
+.noGlow {
+  fill: var(--no, #ff3b30);
+  opacity: 0;
+  transform-origin: 160px 90px;
+  animation: noGlow 900ms var(--slap, 0ms) ease-out both;
+}
+
+@keyframes noGlow {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+  }
+  35% {
+    opacity: 0.28;
+    scale: 1;
+  }
+  100% {
+    opacity: 0.12;
+    scale: 1.08;
+  }
+}
+
+/* Slapped down: from big and tilted, overshooting small, settling. */
+.noSign {
+  color: var(--no, #ff3b30);
+  opacity: 0;
+  transform-origin: 160px 90px;
+  animation: noSlap 520ms var(--slap, 0ms) cubic-bezier(0.3, 0, 0.2, 1) both;
+}
+
+@keyframes noSlap {
+  0% {
+    opacity: 0;
+    transform: scale(2.6) rotate(-28deg);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.86) rotate(3deg);
+  }
+  78% {
+    transform: scale(1.06) rotate(-1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* The scene jolts as the NO hits it. */
+.shake {
+  animation: jolt 280ms calc(var(--slap, 0ms) + 260ms) ease-out both;
+}
+
+@keyframes jolt {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  25% {
+    translate: -5px 3px;
+  }
+  50% {
+    translate: 4px -2px;
+  }
+  75% {
+    translate: -2px 1px;
+  }
+}
+
+/* Then the lot slides away, making room for the next. The words keep their entrance too. */
+.caption.away {
+  animation: captionIn 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Leaving is called by the stage, once the words are in and have been read. */
+/* Leaving, the badge fades as its words un-type; the picture's own way out is in script (SmokeOut). */
+.stage[data-leaving] .badge {
+  animation: badgeOut 600ms ease-in both;
+}
+
+@keyframes badgeOut {
+  to {
+    opacity: 0;
+    scale: 0.8;
+    filter: blur(3px);
+  }
+}
+
+@keyframes away {
+  from {
+    opacity: 1;
+    translate: 0 0;
+  }
+  to {
+    opacity: 0;
+    translate: -36px 0;
+  }
+}
+
+/* ---- seals -------------------------------------------------------------------------------------- */
+
+/* The sea: three waves, each drifting one wavelength per loop so it never jumps, nearer ones faster. */
+.waveNear {
+  animation: waveLeft40 1800ms linear infinite;
+}
+
+.waveMid {
+  animation: waveRight56 3200ms linear infinite;
+}
+
+.waveFar {
+  animation: waveLeft72 4600ms linear infinite;
+}
+
+@keyframes waveLeft40 {
+  to {
+    translate: -40px 0;
+  }
+}
+
+@keyframes waveRight56 {
+  from {
+    translate: -56px 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+@keyframes waveLeft72 {
+  to {
+    translate: -72px 0;
+  }
+}
+
+/* A ripple leaves the slab's side and spreads away. */
+.ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ripple 1400ms ease-out infinite;
+}
+
+@keyframes ripple {
+  from {
+    opacity: 1;
+    scale: 0.6;
+  }
+  to {
+    opacity: 0;
+    scale: 1.6;
+  }
+}
+
+.sealBody {
+  animation: sealBob 900ms ease-in-out infinite alternate;
+}
+
+@keyframes sealBob {
+  to {
+    translate: 0 -1.5px;
+  }
+}
+
+.sealHead {
+  transform-origin: 112px 119px;
+  animation: headBonk var(--beat) both;
+}
+
+@keyframes headBonk {
+  0%,
+  33.9% {
+    transform: none;
+  }
+  35% {
+    transform: translateY(5px) scale(1.12, 0.74);
+  }
+  41% {
+    transform: translateY(-2px) scale(0.94, 1.08);
+  }
+  47% {
+    transform: none;
+  }
+  56% {
+    transform: rotate(-6deg);
+  }
+  66% {
+    transform: rotate(5deg);
+  }
+  76% {
+    transform: rotate(-4deg);
+  }
+  86%,
+  100% {
+    transform: rotate(3deg);
+  }
+}
+
+.eyesOpen {
+  animation: gone var(--beat) both;
+}
+
+.eyesX {
+  opacity: 0;
+  animation: arrive var(--beat) both;
+}
+
+@keyframes gone {
+  0%,
+  34% {
+    opacity: 1;
+  }
+  34.1%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes arrive {
+  0%,
+  34% {
+    opacity: 0;
+  }
+  34.1%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.lump {
+  transform-origin: 116px 78px;
+  animation: lump var(--beat) both;
+}
+
+@keyframes lump {
+  0%,
+  35% {
+    transform: scale(0);
+  }
+  44% {
+    transform: scale(1.25);
+  }
+  52%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+.dizzy {
+  opacity: 0;
+  animation: arriveLater var(--beat) both;
+}
+
+@keyframes arriveLater {
+  0%,
+  42% {
+    opacity: 0;
+  }
+  50%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.orbit {
+  transform-origin: 112px 58px;
+  animation: orbit 900ms linear infinite;
+}
+
+@keyframes orbit {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.star {
+  fill: var(--app-paper, #000);
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.club {
+  animation: clubArm var(--beat) both;
+}
+
+@keyframes clubArm {
+  0% {
+    translate: 60px -60px;
+  }
+  14% {
+    translate: 0 0;
+  }
+  62% {
+    translate: 0 0;
+    opacity: 1;
+  }
+  78%,
+  100% {
+    translate: 70px -80px;
+    opacity: 0;
+  }
+}
+
+.clubStick {
+  transform-origin: 236px 18px;
+  animation: clubSwing var(--beat) both;
+}
+
+@keyframes clubSwing {
+  0%,
+  16% {
+    transform: rotate(70deg);
+  }
+  29% {
+    transform: rotate(88deg);
+  }
+  34% {
+    transform: rotate(-23deg);
+  }
+  39% {
+    transform: rotate(-14deg);
+  }
+  44% {
+    transform: rotate(-21deg);
+  }
+  62%,
+  100% {
+    transform: rotate(60deg);
+  }
+}
+
+.bonk {
+  transform-origin: 78px 60px;
+  animation: bonk var(--beat) both;
+}
+
+@keyframes bonk {
+  0%,
+  33.9% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  37% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+  44% {
+    transform: scale(1);
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  66%,
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+.bonkBurst {
+  fill: var(--app-paper, #000);
+  stroke: currentColor;
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+
+.bonkWord {
+  fill: var(--no, #ff3b30);
+  font: 900 20px/1 var(--glacier-font-sans, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+}
+
+/* ---- water -------------------------------------------------------------------------------------- */
+
+/* The rack lights, in the page's ink, fade on and off, each to its own time. */
+.led {
+  opacity: 0;
+  animation: led 1500ms ease-in-out infinite;
+}
+
+@keyframes led {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0;
+  }
+}
+
+/* Each puff grows about its own middle, so it rises straight up rather than drifting off with the scale. */
+.steam circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: steam 1800ms ease-out infinite backwards;
+}
+
+.steam circle:nth-child(2) {
+  animation-delay: 600ms;
+}
+
+.steam circle:nth-child(3) {
+  animation-delay: 1200ms;
+}
+
+/* Puffs leave the smokestack's mouth and rise straight up, swelling as they go. */
+@keyframes steam {
+  0% {
+    opacity: 0;
+    translate: 0 8px;
+    scale: 0.4;
+  }
+  15% {
+    opacity: 1;
+  }
+  /* Rising and swelling, and fading out as they go. */
+  100% {
+    opacity: 0;
+    translate: 0 -30px;
+    scale: 1.45;
+  }
+}
+
+.lakeTop {
+  stop-color: #63c3ff;
+  animation: lakeTop var(--beat) both;
+}
+
+.lakeBottom {
+  stop-color: #1d6fd6;
+  animation: lakeBottom var(--beat) both;
+}
+
+@keyframes lakeTop {
+  0%,
+  30% {
+    stop-color: #63c3ff;
+  }
+  55% {
+    stop-color: #86cf5a;
+  }
+  75%,
+  100% {
+    stop-color: #a6ff3a;
+  }
+}
+
+@keyframes lakeBottom {
+  0%,
+  30% {
+    stop-color: #1d6fd6;
+  }
+  55% {
+    stop-color: #3b7f25;
+  }
+  75%,
+  100% {
+    stop-color: #1b3905;
+  }
+}
+
+.lakeSurface {
+  fill: #9fdcff;
+  animation: lakeSurface var(--beat) both;
+}
+
+@keyframes lakeSurface {
+  0%,
+  30% {
+    fill: #9fdcff;
+  }
+  75%,
+  100% {
+    fill: #c9ff6b;
+  }
+}
+
+/* A bubble, made by script (useLakeFeel): coloured with the lake as it turns, moved by its own animation. */
+.bubble {
+  fill: #9fdcff;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: toxicFill var(--beat) linear both;
+}
+
+/*
+ * The sewage pouring from the pipe: a stream in the water's own colour, turning
+ * with the lake, its paper streaks running down it so it reads as flowing, and
+ * rings spreading where it hits.
+ */
+.pour {
+  stroke: #63c3ff;
+  animation: toxicStroke var(--beat) both;
+}
+
+.pipeFlow {
+  stroke: var(--app-paper, #000);
+  stroke-dasharray: 4 9;
+  animation: pipeFlow 520ms linear infinite;
+}
+
+@keyframes pipeFlow {
+  to {
+    stroke-dashoffset: -13;
+  }
+}
+
+.pourFlow {
+  stroke: var(--app-paper, #000);
+  stroke-dasharray: 3 7;
+  animation: pourFlow 380ms linear infinite;
+}
+
+@keyframes pourFlow {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+.splash {
+  stroke: #63c3ff;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    splash 900ms ease-out infinite,
+    toxicStroke var(--beat) both;
+}
+
+@keyframes splash {
+  from {
+    opacity: 1;
+    scale: 0.4;
+  }
+  to {
+    opacity: 0;
+    scale: 1.6;
+  }
+}
+
+@keyframes toxicStroke {
+  0%,
+  30% {
+    stroke: #63c3ff;
+  }
+  55% {
+    stroke: #86cf5a;
+  }
+  75%,
+  100% {
+    stroke: #a6ff3a;
+  }
+}
+
+@keyframes toxicFill {
+  0%,
+  30% {
+    fill: #9fdcff;
+  }
+  70%,
+  100% {
+    fill: #b6ff4d;
+  }
+}
+
+.fish {
+  animation: swim 1400ms ease-in-out infinite alternate;
+}
+
+@keyframes swim {
+  from {
+    translate: -22px 0;
+  }
+  to {
+    translate: 22px 0;
+  }
+}
+
+.fishFlip {
+  transform-origin: 234px 154px;
+  animation: bellyUp var(--beat) both;
+}
+
+@keyframes bellyUp {
+  0%,
+  58% {
+    transform: none;
+  }
+  66% {
+    transform: rotate(180deg);
+  }
+  84%,
+  100% {
+    transform: translateY(-16px) rotate(180deg);
+  }
+}
+
+.fishEye {
+  animation: gone2 var(--beat) both;
+}
+
+.fishEyeX {
+  opacity: 0;
+  animation: arrive2 var(--beat) both;
+}
+
+@keyframes gone2 {
+  0%,
+  62% {
+    opacity: 1;
+  }
+  62.1%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes arrive2 {
+  0%,
+  62% {
+    opacity: 0;
+  }
+  62.1%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.stink path {
+  opacity: 0;
+  stroke-dasharray: 6 5;
+  animation:
+    stinkIn var(--beat) both,
+    stinkWave 700ms linear infinite;
+}
+
+@keyframes stinkIn {
+  0%,
+  60% {
+    opacity: 0;
+    translate: 0 6px;
+  }
+  76%,
+  100% {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes stinkWave {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+
+/* ---- the hot phone ------------------------------------------------------------------ */
+
+.heat path {
+  opacity: 0;
+  stroke-dasharray: 8 6;
+  animation:
+    heatRise 1200ms ease-out infinite,
+    stinkWave 700ms linear infinite;
+}
+
+@keyframes heatRise {
+  0% {
+    opacity: 0;
+    translate: 0 8px;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -10px;
+  }
+}
+
+/* The phone's "help me": pops up from its tail just after the A-OK lands, then wobbles, pleading. */
+.helpBubble {
+  opacity: 0;
+  transform-origin: 84px 59px;
+  animation:
+    helpIn 460ms cubic-bezier(0.2, 1.6, 0.4, 1) calc(var(--slap, 0ms) + 560ms) both,
+    helpWobble 700ms ease-in-out calc(var(--slap, 0ms) + 1020ms) infinite alternate;
+}
+
+/* The bubble's words changed (the ask, then the thanks): it pops again straight away. Thanked, it stops pleading. */
+.helpBubbleNow {
+  transform-origin: 84px 59px;
+  animation:
+    helpIn 460ms cubic-bezier(0.2, 1.6, 0.4, 1) both,
+    helpWobble 700ms ease-in-out 460ms infinite alternate;
+}
+
+.helpBubbleNow[data-mood='thanks'] {
+  animation: helpIn 460ms cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.helpBubbleNow .helpWords {
+  font-size: 12.5px;
+}
+
+@keyframes helpIn {
+  from {
+    opacity: 0;
+    scale: 0.2;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes helpWobble {
+  from {
+    rotate: -2deg;
+  }
+  to {
+    rotate: 2deg;
+  }
+}
+
+.helpWords {
+  fill: currentColor;
+  font: 800 15px/1 var(--glacier-font-sans, system-ui, sans-serif);
+  letter-spacing: 0.01em;
+}
+
+/* The phone gets warmer: from still to a jitter by the end. */
+.phoneWarm {
+  transform-origin: 160px 107px;
+  animation: warm 180ms ease-in-out calc(var(--beat) * 0.45) infinite alternate;
+}
+
+@keyframes warm {
+  from {
+    rotate: -1.5deg;
+  }
+  to {
+    rotate: 1.5deg;
+  }
+}
+
+.sweat {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sweat 1400ms ease-out infinite;
+}
+
+@keyframes sweat {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 26px;
+  }
+}
+
+/* The red climbs: its clip slides up from showing only the bulb to the whole tube across the scene. */
+.mercuryClip {
+  animation: mercury var(--beat) cubic-bezier(0.4, 0, 0.3, 1) both;
+}
+
+@keyframes mercury {
+  from {
+    translate: 0 92px;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+/* ---- the art heist ----------------------------------------------------------------------------- */
+
+/* The artist's shoulders heave; the tears fall and are gone. */
+.sob {
+  animation: sob 420ms ease-in-out infinite alternate;
+}
+
+@keyframes sob {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 0 2.5px;
+  }
+}
+
+.tears {
+  --tear: #2f7df6;
+}
+
+.tear {
+  opacity: 0;
+  animation: tear 1140ms ease-in infinite;
+}
+
+@keyframes tear {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 26px;
+  }
+}
+
+/* Across the floor, from off the left to past the middle, as the scene plays. */
+.robotRun {
+  animation: robotRun var(--beat) cubic-bezier(0.3, 0.1, 0.5, 1) both;
+}
+
+@keyframes robotRun {
+  from {
+    translate: -130px 0;
+  }
+  to {
+    translate: 110px 0;
+  }
+}
+
+.robotBob {
+  animation: robotBob 180ms ease-in-out infinite alternate;
+}
+
+@keyframes robotBob {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 0 -4px;
+  }
+}
+
+.legBack {
+  transform-origin: 116px 114px;
+  animation: stride 360ms ease-in-out infinite alternate;
+}
+
+.legFront {
+  transform-origin: 126px 114px;
+  animation: stride 360ms ease-in-out infinite alternate-reverse;
+}
+
+.armBack {
+  transform-origin: 106px 86px;
+  animation: stride 360ms ease-in-out infinite alternate-reverse;
+}
+
+@keyframes stride {
+  from {
+    rotate: -28deg;
+  }
+  to {
+    rotate: 28deg;
+  }
+}
+
+.speed line {
+  stroke-dasharray: 10 8;
+  animation: speed 240ms linear infinite;
+}
+
+@keyframes speed {
+  to {
+    stroke-dashoffset: 18;
+  }
+}
+
+/*
+ * The police: red light from one side and blue from the other, flashing in
+ * turn, across the whole page behind its words (inside the guide's stacking
+ * context, below its content), until the heist slides away.
+ */
+.police {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(60% 45% at 0% 20%, rgba(255, 36, 36, 0.55), transparent 70%),
+    radial-gradient(60% 45% at 100% 20%, rgba(40, 90, 255, 0.55), transparent 70%);
+  background-size: 100% 100%;
+  animation:
+    policeIn 300ms ease-out both,
+    siren 450ms steps(1, end) infinite;
+}
+
+@keyframes policeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Red, blue, red, blue: each half of the gradient shown alone in turn. */
+@keyframes siren {
+  0% {
+    background:
+      radial-gradient(70% 55% at 0% 20%, rgba(255, 36, 36, 0.6), transparent 70%),
+      radial-gradient(70% 55% at 100% 20%, transparent, transparent);
+  }
+  50% {
+    background:
+      radial-gradient(70% 55% at 0% 20%, transparent, transparent),
+      radial-gradient(70% 55% at 100% 20%, rgba(40, 90, 255, 0.6), transparent 70%);
+  }
+}
+
+/* ---- held still ------------------------------------------------------------------------------- */
+
+.stillList {
+  display: grid;
+  gap: var(--glacier-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stillItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--glacier-space-3);
+}
+
+.stillItem .badgeBan {
+  opacity: 1;
+}
+
+.stage[data-leaving] .police {
+  animation:
+    siren 450ms steps(1, end) infinite,
+    away 420ms ease-in both;
+}
