@@ -46,18 +46,19 @@ double marginColumn(double body) => body * 3;
 
 /// A line's leading mark: its indent, the mark (`#` to `######`, a bullet or a number, a quote's `>`) and the one
 /// space after it. Only the first thing on the line: a list inside a quote hangs the quote's `>`.
-final RegExp _leading = RegExp('^([ \\t]*)(#{1,6}(?=[ \\t]|\$)|$markerPattern(?=[ \\t]|\$)|>)([ \\t]?)');
+final RegExp _leading = RegExp('^([ \\t]*)(#{1,6}(?=[ \\t]|\$)|$markerPattern(?=[ \\t]|\$)|>)([ \\t]?)((?:$boxPattern)[ \\t]?)?');
 
 /// What a line's leading mark is: `indent` (spaces before it), `mark` (the mark and the space after it). Null for a
 /// line that has none. [heading], [item] and [quote] say which blocks the line is in, so a `-` in a paragraph, or a
 /// `#` the parser did not take as a heading, is left where it is.
-({String indent, String mark})? leadingMark(String text, {required bool heading, required bool item, required bool quote}) {
+({String indent, String mark, String box})? leadingMark(String text, {required bool heading, required bool item, required bool quote}) {
   final found = _leading.firstMatch(text);
   if (found == null) return null;
   final sign = found.group(2)!;
   final kind = sign.startsWith('#') ? heading : (sign == '>' ? quote : item);
   if (!kind) return null;
-  return (indent: found.group(1)!, mark: '$sign${found.group(3)!}');
+  // A to-do's box hangs with its bullet, so the words, and the lines they wrap onto, start at the edge.
+  return (indent: found.group(1)!, mark: '$sign${found.group(3)!}', box: kind && sign != '>' && !sign.startsWith('#') ? found.group(4) ?? '' : '');
 }
 
 /// The marks on the visible lines, each as [marginMarkClass]: the size and ink of the column's signs. Read from the

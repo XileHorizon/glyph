@@ -14,7 +14,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../support/render.dart';
 
-const String _note = '# One\n\nSome words here\n\n- An item\n\n> A quote\n\n###### Six\n\n```\n# not a heading\n```';
+const String _note = '# One\n\nSome words here\n\n- An item\n- [ ] A task to do\n\n> A quote\n\n###### Six\n\n```\n# not a heading\n```';
 
 Future<EditorView> _show(WidgetTester tester, NoteView display, {Compartment? compartment}) async {
   final view = EditorView(
@@ -49,7 +49,7 @@ void main() {
     final view = await _show(tester, NoteView.margin);
     expect(view.state.facet(marginView), isTrue);
     final edge = _wordsX(view, 'Some words');
-    for (final words in ['One', 'An item', 'Six']) {
+    for (final words in ['One', 'An item', 'A task', 'Six']) {
       expect(_wordsX(view, words), moreOrLessEquals(edge, epsilon: 0.5), reason: words);
     }
     // Each mark sits left of the edge, in the column.

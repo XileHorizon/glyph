@@ -98,12 +98,12 @@ Map<String, String>? _marginHang(EditorViewLike view, String text, List<String> 
   final found = leadingMark(text, heading: heading, item: classes.contains(MarkdownClass.lineItem), quote: classes.contains(MarkdownClass.lineQuote));
   if (found == null) return null;
   final indent = found.indent.isEmpty ? 0.0 : layoutUnitCeil(view.measureText(<(String, String?)>[(found.indent, null)]));
-  final mark = layoutUnitCeil(view.measureText(<(String, String?)>[(found.mark, marginMarkClass)]));
+  final mark = layoutUnitCeil(view.measureText(<(String, String?)>[(found.mark, marginMarkClass), if (found.box.isNotEmpty) (found.box, MarkdownClass.taskMarker)]));
   final column = marginColumn(look.env.body);
   final hang = indent + (mark > column ? mark : column);
   return <String, String>{
     'style': '--hang: ${hang.toStringAsFixed(2)}px; --hang-indent: ${indent.toStringAsFixed(2)}px',
-    'data-hang-chars': '${found.indent.length + found.mark.length}',
+    'data-hang-chars': '${found.indent.length + found.mark.length + found.box.length}',
   };
 }
 
