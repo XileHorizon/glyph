@@ -896,6 +896,13 @@ class NoteDeskState extends State<NoteDesk> {
       mediaExtensions(seams: _mediaSeams, places: PlaceMode.live, videos: _world.films == null ? VideoMode.still : VideoMode.play),
       if (_world.openLink != null) semanticsOpenLink.of((url) => unawaited(_world.openLink!(url))),
     ],
+    // Drawn again as the library changes, as this note's own editor's are (`_libraryChanged`): the board over a
+    // notebook's index shows a card where it was dropped.
+    changes: _world.changes,
+    told: (state) => <StateEffect<Object?>>[
+      if (_world.queryNotes != null && queryFencesOf(state.doc).isNotEmpty) refreshQueries.of(null),
+      if (_world.bodyOf != null && hasFrames(state.doc)) refreshCanvasFrames.of(null),
+    ],
   );
 
   /// What plays a voice memo: the memos' own player of a recording, where there is one. Never the tape's: a memo
@@ -932,15 +939,25 @@ class NoteDeskState extends State<NoteDesk> {
   /// the preface alone, without the front matter that makes the note a notebook and names it, and read as this
   /// note's body they took the notebook out of the library: `from: tasks [[Baby on the way]]` in that notebook's
   /// own words said "No note is called". The notebook as it was last saved is the one they read.
+  ///
+  /// The words are drawn read only, and what their queries list is written all the same, where this note can be
+  /// (Matt, 2026-10-27: "I can't drag items around in the query tickets for hello trade"): a ticket carried to
+  /// another lane of the board over the index, a to-do ticked, a field picked, each in its own note through the
+  /// screen's one writer, the library's (`_writeNote`), as the index's own status button writes a page. The
+  /// notebook itself is not written from here: its words are its screen's, kept behind it, and a write through the
+  /// library under them would be refused at their next save.
   late final QueryOptions? _bookQueries = _world.queryNotes == null
       ? null
       : QueryOptions(
           notes: () => _world.queryNotes!(),
           noteId: null,
           open: (id, line) => _world.openAt?.call(id, line),
-          write: (id, change) => _world.write?.call(id, change),
+          write: (id, change) {
+            if (id != widget.noteId) _world.write?.call(id, change);
+          },
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
           events: _world.queryEvents,
+          listedWritable: () => !widget.readOnly && _world.write != null,
         );
 
   @override

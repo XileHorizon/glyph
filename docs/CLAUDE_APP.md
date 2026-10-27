@@ -221,6 +221,28 @@ filing one out takes it from them; the note's Workspace picker asks twice before
 it is and answers it under `refused`, with why and that the person can move it from the note's Workspace picker; the
 others in the same call are filed. Within one organization, and among personal folders, Claude files freely.
 
+### Notebooks, tickets and the Trash
+
+Matt, 2026-10-27, after the in-app Claude (Haiku 5.5), asked to make a HelloTrade notebook of tickets from a meeting,
+wrote each ticket's front matter by hand through `create_note`, had a create cut off, and left three notes named
+"book: true", "type: ticket" and "ticket" it could neither take back nor file into the organization: "please increase
+the functionality of the Claude in app to better prevent this". lib/claude/claude_books.dart:
+
+- **`create_notebook`** `{title, ticket_key?, folder?, about?}`: a notebook (`bookNoteBody`) with its key, made in a
+  folder, an organization's included: a note made new for the team shares nothing that was the person's alone.
+- **`create_ticket`** `{notebook, title, status?, assignee?, due?, priority?, details?}`: made as the app makes one
+  (`newTicketBody`, `nextTicketId`, `withChapter`): the next key, the notebook's first open status, filed where the
+  notebook is, its page put in the index through the open screen where the notebook is open. A title another note has
+  is refused (a notebook's pages are claimed by title).
+- **`trash_note`** `{id}`: to the Trash. Only a note of the person's own: a team's note, even one Claude made, is
+  refused, since taking it away takes it from every member for good (an organization's deletes skip the Trash).
+- **`create_note`'s `folder`**: the note it makes is filed there, by the same rule.
+- **A create cut off** (the stream failed, the input never closed, invalid JSON) takes back the half-made note to
+  the Trash, and the run's steps say so.
+
+The system prompt says to use the two tools for notebooks and tickets, to make one ticket and read it back before
+the rest, and that front matter comes before the `# Title`.
+
 ## Typing as Claude writes
 
 When a writing tool's words start, the note is made or found, opened (lib/root/root_claude.dart `_RootClaudeDesk`),

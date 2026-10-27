@@ -76,6 +76,7 @@ class QueryView extends StatefulWidget {
     required this.result,
     this.dayEvents = const [],
     required this.editable,
+    bool? linesEditable,
     this.today,
     this.locale,
     this.height,
@@ -89,7 +90,7 @@ class QueryView extends StatefulWidget {
     this.onAdd,
     this.people,
     this.dayPicker,
-  });
+  }) : linesEditable = linesEditable ?? editable;
 
   final QueryLook look;
 
@@ -102,7 +103,14 @@ class QueryView extends StatefulWidget {
 
   /// The calendars' events, as rows, that a calendar of to-dos shows quieter beside its own (docs/CALENDAR.md).
   final List<QueryRow> dayEvents;
+
+  /// Whether what the query lists can be changed from it: a card carried, a box ticked, a field picked.
   final bool editable;
+
+  /// Whether the query's own lines can be: the pencil, the switcher and the builder at its head. As [editable]
+  /// unless given; false in a notebook's own words, drawn read only, where the tickets on its board are still the
+  /// person's to move (queries.dart `QueryOptions.listedWritable`).
+  final bool linesEditable;
 
   /// The day the days are named from; the result's own where none is given.
   final String? today;
@@ -214,7 +222,7 @@ class QueryViewState extends State<QueryView> {
     final result = widget.result;
     if (problem != null || result == null) {
       return _frame('Query', <Widget>[
-        QueryHead(look: look, title: 'Query', count: null, editable: widget.editable, onEdit: widget.onEdit),
+        QueryHead(look: look, title: 'Query', count: null, editable: widget.linesEditable, onEdit: widget.onEdit),
         // .lines { padding: var(--glacier-space-2) var(--glacier-space-3); border-radius: var(--glacier-radius-md);
         //   background: var(--app-paper); font-family: var(--glacier-font-mono);
         //   font-size: var(--glacier-font-size-xs); line-height: 1.6; white-space: pre-wrap; color: var(--app-ink-2) }
@@ -260,7 +268,7 @@ class QueryViewState extends State<QueryView> {
         look: look,
         title: words,
         count: count,
-        editable: widget.editable,
+        editable: widget.linesEditable,
         onEdit: widget.onEdit,
         show: result.show,
         onShow: onBody == null ? null : (way) => onBody(withShow(widget.lines, way)),

@@ -197,6 +197,43 @@ void main() {
       expect(find.text('Fix the login loop'), findsOneWidget);
     });
 
+    // A notebook's own words are drawn read only, and the tickets on a board there are notes of their own (Matt,
+    // 2026-10-27: "I can't drag items around in the query tickets for hello trade").
+    testWidgets('in words drawn read only whose host lets it, moves a ticket and leaves the lines alone', (tester) async {
+      final options = QueryOptions(
+        notes: () => library,
+        noteId: null,
+        open: (noteId, line) => asked.opened.add((noteId, line)),
+        write: (noteId, change) => asked.written.add((noteId, change)),
+        listedWritable: () => true,
+      );
+      await pumpQueries(tester, fence('from: tickets\nshow: board'), options: options, readOnly: true, today: today);
+      // Nothing at the head writes the lines, and no line under the board sets its height.
+      expect(said('Edit the query'), findsNothing);
+      expect(said('How to show the query'), findsNothing);
+      final across = tester.state<ScrollableState>(find.descendant(of: drawn, matching: find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.right)).last);
+      across.position.jumpTo(470);
+      await tester.pump();
+      final card = boxOf(tester, parts('card'));
+      final target = boxOf(tester, parts('lane').at(3));
+      final finger = await holdAt(tester, card.topLeft + const Offset(30, 12));
+      await finger.moveTo(Offset(target.left + 60, target.center.dy));
+      await tester.pump();
+      await finger.up();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(written(ticket), contains('status: In review'));
+    });
+
+    testWidgets('in words drawn read only, with nothing said, moves nothing', (tester) async {
+      await open(tester, fence('from: tickets\nshow: board'), editable: false);
+      final card = boxOf(tester, parts('card'));
+      final finger = await holdAt(tester, card.topLeft + const Offset(30, 12));
+      expect(find.descendant(of: find.byType(Overlay).first, matching: find.text('Fix the login loop')), findsOneWidget, reason: 'nothing lifted');
+      await finger.up();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(asked.written, isEmpty);
+    });
+
     for (final show in const <String>['list', 'table']) {
       testWidgets('moves a ticket to the group its row is dragged to in a grouped $show, by the same drag', (tester) async {
         // A second ticket, so there is another group to carry it to.

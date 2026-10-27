@@ -417,3 +417,93 @@ class _QuietClaudeDesk implements ClaudeDesk {
   @override
   bool get smoke => false;
 }
+
+/// The notebooks, tickets and Trash as Claude's book tools reach them (lib/claude/claude_books.dart): made the way the
+/// app makes them, a query board's + and the notebook's own (root_commands.dart `_addFromQuery`).
+class _RootClaudeShelf implements ClaudeShelf {
+  _RootClaudeShelf(this._root);
+
+  final _GhostRootState _root;
+
+  NoteLibrary get _library => _root._library;
+  WorkspaceStore get _workspaces => _root._workspaces;
+
+  List<Note> get _live => [
+        for (final note in _root._shown)
+          if (note.archivedAt == null) note,
+      ];
+
+  static String _under(String body, String? words) {
+    final said = words?.trim() ?? '';
+    if (said.isEmpty) return body;
+    final lines = body.split('\n');
+    final heading = lines.indexWhere((line) => line.startsWith('# '));
+    if (heading < 0) return '${body.trimRight()}\n\n$said\n';
+    return [...lines.sublist(0, heading + 1), '', said, ...lines.sublist(heading + 1)].join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n');
+  }
+
+  @override
+  Future<String> notebook({required String title, String? key, String? about, String? workspaceId}) async {
+    var body = bookNoteBody(title);
+    if (key != null) body = withNotebookKey(body, key);
+    body = _under(body, about);
+    final made = await _library.createNote(body);
+    if (workspaceId != null) _workspaces.fileNote(made.id, workspaceId);
+    await _library.refresh();
+    return made.id;
+  }
+
+  @override
+  ({String id, String title, String? key})? findNotebook(String asked) {
+    final key = asked.trim().toLowerCase();
+    for (final note in _live) {
+      if (!isBookBody(note.body) || isJournalBody(note.body)) continue;
+      if (note.id == asked.trim() || noteTitle(note.body).trim().toLowerCase() == key) {
+        return (id: note.id, title: noteTitle(note.body), key: notebookKey(note.body));
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<({String id, String? key})> ticket({required String notebookId, required String title, required List<(String, String)> fields, String? details}) async {
+    final book = await _library.get(notebookId);
+    if (book == null) throw const ClaudeBookProblem('That notebook is gone.');
+    // A page is its notebook's by its title, so two of one name would be one page twice.
+    if (_live.any((note) => sameTitle(noteTitle(note.body), title))) throw ClaudeBookProblem('There is already a note called “$title”. Give the ticket another title.');
+    final key = nextTicketId(book.body, [for (final note in _library.value) note.body]);
+    var body = newTicketBody(title, id: key, statuses: statusesOf(book.body));
+    for (final (field, value) in fields) {
+      body = withProperty(body, field, value);
+    }
+    body = _under(body, details);
+    final made = await _library.createNote(body);
+    final space = _workspaces.workspaceOf(book.id);
+    if (space != null) _workspaces.fileNote(made.id, space.id);
+    // Into the notebook's index through its screen where it is open, so the page there keeps it.
+    await _root._changeNote(book.id, (index) => withChapter(index, title), userEvent: 'claude.type');
+    await _library.refresh();
+    return (id: made.id, key: key);
+  }
+
+  @override
+  void fileNew(String id, String workspaceId) => _workspaces.fileNote(id, workspaceId);
+
+  @override
+  bool isTeams(String id) {
+    final filed = _workspaces.workspaceOf(id);
+    return filed != null && _workspaces.orgOf(filed.id) != null;
+  }
+
+  @override
+  String? titleOf(String id) {
+    final note = _library.noteOf(id);
+    return note == null ? null : noteTitle(note.body);
+  }
+
+  @override
+  Future<void> trash(String id) async {
+    _root._delete(id);
+    await _library.refresh();
+  }
+}

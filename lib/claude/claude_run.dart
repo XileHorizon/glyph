@@ -28,6 +28,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../editor/editor.dart' show EditorViewLike;
+import 'claude_books.dart';
 import 'claude_folders.dart';
 import 'claude_spend.dart';
 import 'claude_tools.dart';
@@ -97,6 +98,7 @@ class ClaudeRun extends ChangeNotifier {
     required this.notes,
     required this.desk,
     this.folders,
+    this.books,
     required this.prompt,
     this.system,
     this.maxTokens = 16000,
@@ -115,6 +117,9 @@ class ClaudeRun extends ChangeNotifier {
   /// The folders, where Claude may arrange them and file notes in them (lib/claude/claude_folders.dart, GHST-108);
   /// none, and the folder tools are not offered.
   final ClaudeFolders? folders;
+
+  /// Notebooks, tickets and the Trash (lib/claude/claude_books.dart); none, and those tools are not offered.
+  final ClaudeBooks? books;
   final String prompt;
   final String? system;
   final int maxTokens;
@@ -300,7 +305,7 @@ class ClaudeRun extends ChangeNotifier {
       'thinking': ?thinking,
       if (effort != null) 'output_config': {'effort': effort},
       if (system != null) 'system': system,
-      'tools': [...claudeTools, if (folders != null) ...claudeFolderTools],
+      'tools': [...claudeTools, if (folders != null) ...claudeFolderTools, if (books != null) ...claudeBookTools],
       'messages': _messages,
     });
     final call = _call = spend == null ? asked : meterClaude(asked, model: model, spend: spend);
@@ -454,6 +459,17 @@ class ClaudeRun extends ChangeNotifier {
 
   /// The tools that read, open_note, and the folder tools.
   Future<String> _read(String name, Map<String, Object?> input) async {
+    final books = this.books;
+    if (books != null && ClaudeBookTool.all.contains(name)) {
+      try {
+        final done = await books.answer(name, input);
+        if (done.noteId != null) touched[done.noteId!] = books.shelf.titleOf(done.noteId!) ?? '';
+        _tool(done.step, done.noteId);
+        return done.said;
+      } on ClaudeBookProblem catch (problem) {
+        throw _ToolProblem(problem.message);
+      }
+    }
     final folders = this.folders;
     if (folders != null && ClaudeFolderTool.all.contains(name)) {
       try {
@@ -573,6 +589,9 @@ class _Writing extends FieldListener {
   /// The note's title as it was, for the steps.
   String _title = '';
 
+  /// Whether this tool made the note it writes (create_note): one cut off before its words were whole is taken back.
+  bool _made = false;
+
   /// Whether the note was to be shown (made, or followed) and the screen could not show it: its words are written
   /// behind the screen all the same, and the run says so, to the person and to Claude.
   bool _unseen = false;
@@ -600,6 +619,8 @@ class _Writing extends FieldListener {
     if (tool == ClaudeTool.create) {
       id = await run.notes.create('');
       created = true;
+      _made = true;
+      claudeMade.add(id);
       _title = 'a new note';
     } else {
       final named = reader.strings['id'];
@@ -669,9 +690,26 @@ class _Writing extends FieldListener {
       if (tool != ClaudeTool.create) throw const _ToolProblem('Give the note’s `id`.');
       // Made whole, never opened: nothing of it was streamed.
       id = noteId = await run.notes.create(words);
+      claudeMade.add(id);
     } else {
       id = known;
       if (typer == null || !typer.whole) await _behind(id, input, typer);
+      // A whole note typed in is checked against the words Claude sent: the editor's own typing rules may have made
+      // something else of them (a `---` on a new note's first line was taken, and its front matter's first key became
+      // its title: "book: true"). The words sent are what the note is.
+      if ((tool == ClaudeTool.create || tool == ClaudeTool.rewrite) && words.isNotEmpty) {
+        final typed = await run.notes.read(id: id);
+        if (typed != null && typed.body != words) await run.desk.change(id, (_) => words);
+      }
+    }
+    // Made in the folder asked for, an organization's included: a note made new shares nothing of the person's.
+    String? filedIn;
+    if (tool == ClaudeTool.create && input['folder'] != null) {
+      try {
+        filedIn = run.books?.fileNew(id, input['folder']);
+      } on ClaudeBookProblem catch (problem) {
+        throw _ToolProblem('The note was made, but not filed: ${problem.message}');
+      }
     }
     final note = await run.notes.read(id: id);
     final title = note?.title ?? _title;
@@ -687,6 +725,7 @@ class _Writing extends FieldListener {
       'id': id,
       'title': title,
       'done': true,
+      'folder': ?filedIn,
       if (_unseen) 'shown': 'No: the note could not be opened on the screen, so its words were written without being shown. Tell the person it is there.',
     });
   }
@@ -727,10 +766,24 @@ class _Writing extends FieldListener {
   Future<void> abandon() async {
     await _ready;
     final typer = this.typer, typed = noteId;
-    if (typer == null) return;
-    typer.flush();
-    await typer.end();
-    // Its caret is taken out with the others' as the run ends.
-    if (typed != null) run._typedTo(typed, typer);
+    if (typer != null) {
+      typer.flush();
+      await typer.end();
+      // Its caret is taken out with the others' as the run ends.
+      if (typed != null) run._typedTo(typed, typer);
+    }
+    // A note this tool made whose words never came whole (the stream cut off, the run stopped) is half a note, titled
+    // by whatever line it got to ("book: true"): taken back to the Trash, and the step says so.
+    final shelf = run.books?.shelf;
+    if (_made && typed != null && shelf != null) {
+      try {
+        await shelf.trash(typed);
+        claudeMade.remove(typed);
+        run.touched.remove(typed);
+        run._tool('Took back a note that was cut off before it was whole');
+      } catch (_) {
+        // Left as it is: the person can delete it.
+      }
+    }
   }
 }

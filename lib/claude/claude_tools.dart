@@ -13,6 +13,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import 'claude_books.dart' show claudeBookSystem;
 import 'claude_folders.dart' show claudeFolderSystem;
 
 /// A note as a list shows it.
@@ -126,8 +127,11 @@ final List<Map<String, Object?>> claudeTools = [
   }, const ['id']),
   _tool(
     ClaudeTool.create,
-    'A new note, opened on the person’s screen, its words typed in as you write them. The body is markdown and its first line is its title, as a `# Title` heading. Ghost.md’s marks all work: headings, lists, `- [ ]` to-dos, tables, fenced code.',
-    {'body': _string('The note’s markdown, starting with its `# Title`.')},
+    'A new note, opened on the person’s screen, its words typed in as you write them. The body is markdown and its first line is its title, as a `# Title` heading. Ghost.md’s marks all work: headings, lists, `- [ ]` to-dos, tables, fenced code. Not for a notebook or a ticket: create_notebook and create_ticket make those. A note cut off before its words are whole is taken back.',
+    {
+      'folder': _string('Where it goes, given before the body: a folder’s id or its path from list_folders, like “HelloTrade › Meetings”, an organization’s included (a new note there is the team’s). Left out, it is the person’s own, in no folder.'),
+      'body': _string('The note’s markdown, starting with its `# Title` (or with its front matter, then the `# Title`).'),
+    },
     const ['body'],
     streamed: true,
   ),
@@ -165,7 +169,7 @@ final List<Map<String, Object?>> claudeTools = [
 ];
 
 /// The system prompt: who Claude is here and how to write into a note someone is watching.
-String claudeSystem({required DateTime now, String? rules, bool folders = false}) {
+String claudeSystem({required DateTime now, String? rules, bool folders = false, bool books = false}) {
   final day = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   return [
     'You are Claude, working inside Ghost.md, a markdown notes app, on the person’s own phone or computer. Today is $day.',
@@ -173,6 +177,7 @@ String claudeSystem({required DateTime now, String? rules, bool folders = false}
     'Notes are plain markdown. A note’s first line is its title, as a `# Title` heading. Keep a note’s front matter (the `---` block at its top) as it is unless asked to change it.',
     'Find a note before changing it: search or list, then read it. To change part of a note use replace_in_note; to add to it, append_to_note; rewrite_note only when most of it changes.',
     if (folders) claudeFolderSystem,
+    if (books) claudeBookSystem,
     'When you are done, say in a sentence or two what you did, naming the notes. Do not paste a note’s contents back into the reply.',
     if (rules != null && rules.trim().isNotEmpty) 'The person’s standing instructions for you (their “Claude rules” note):\n\n${rules.trim()}',
   ].join('\n\n');

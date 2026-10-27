@@ -720,10 +720,18 @@ class _RenderFlexWrap extends RenderBox with ContainerRenderObjectMixin<RenderBo
 /// own `[[link]]`s, so [BookWords] adds none of its own beside them.
 @immutable
 class BookDrawing {
-  const BookDrawing({this.formats = const <InlineFormatSyntax>[], this.extensions = const <Extension>[]});
+  const BookDrawing({this.formats = const <InlineFormatSyntax>[], this.extensions = const <Extension>[], this.changes, this.told});
 
   final List<InlineFormatSyntax> formats;
   final List<Extension> extensions;
+
+  /// The library the blocks read (a query's tickets, a framed canvas), and what the words' editor is told when it
+  /// changes: the effects that draw those blocks again, for the words as they are; none where nothing in them reads
+  /// another note. Matt, 2026-10-27: "I can't drag items around in the query tickets for hello trade": a card
+  /// carried to another lane of the board over a notebook's index was written, and the board, drawn when the
+  /// notebook opened and never again, put it back in the lane it came from.
+  final Listenable? changes;
+  final List<StateEffect<Object?>> Function(EditorState state)? told;
 }
 
 /// The book's own words around its index, drawn as a note is - read-only, formatted - in the index's column
@@ -749,6 +757,29 @@ class BookWords extends StatefulWidget {
 
 class _BookWordsState extends State<BookWords> {
   late EditorView _view = _make();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.drawing?.changes?.addListener(_libraryChanged);
+  }
+
+  /// The library changed: the words' blocks that read it are drawn again, after the frame where one is being built
+  /// (note_desk.dart `_libraryChanged`, the note's own editor's).
+  void _libraryChanged() {
+    void tell() {
+      final told = widget.drawing?.told;
+      if (!mounted || told == null) return;
+      final effects = told(_view.state);
+      if (effects.isNotEmpty) _view.dispatch(TransactionSpec(effects: effects));
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      tell();
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) => tell());
+    }
+  }
 
   bool get _links => widget.known != null && widget.open != null;
 
@@ -786,6 +817,10 @@ class _BookWordsState extends State<BookWords> {
   @override
   void didUpdateWidget(BookWords oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.drawing?.changes, widget.drawing?.changes)) {
+      oldWidget.drawing?.changes?.removeListener(_libraryChanged);
+      widget.drawing?.changes?.addListener(_libraryChanged);
+    }
     if (oldWidget.words != widget.words || (oldWidget.known != null && oldWidget.open != null) != _links || !identical(oldWidget.drawing, widget.drawing)) {
       _view.destroy();
       _view = _make();
@@ -794,6 +829,7 @@ class _BookWordsState extends State<BookWords> {
 
   @override
   void dispose() {
+    widget.drawing?.changes?.removeListener(_libraryChanged);
     _view.destroy();
     super.dispose();
   }
