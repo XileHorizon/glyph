@@ -346,6 +346,12 @@ export interface Preferences {
   /** How notes are shown: marks and formatting together, or just the formatted text (editor/viewMode.ts). */
   noteView: NoteView;
   /**
+   * Markdown with a line's leading mark (`#`, `-`, `1.`, `>`) hung in a column left of the words, so the words keep one
+   * edge (editor/viewMode.ts, Margin). Read with `noteView` through `shownView`; Formatted hides the marks either way.
+   * Switched in Settings › Appearance › Notes.
+   */
+  marksInMargin: boolean;
+  /**
    * The notes left open as tabs, oldest first, and kept so they come back on a reload and on another device
    * (Matt: "Persist tabs across devices and reloads"). State rather than a setting, but it belongs to the person
    * and not to the phone, so it travels the way their settings do (core/sync/prefs.ts).
@@ -479,6 +485,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   codeDark: 'pastel',
   codeChosen: false,
   noteView: 'mixed',
+  marksInMargin: false,
   openNotes: [],
   tabGroups: { list: [], of: {} },
   workspaces: { list: [], notes: {} },
@@ -515,6 +522,7 @@ function settle(raw: unknown): Preferences {
   if (!isCodeThemeLight(loaded.codeLight) || !loaded.codeChosen) loaded.codeLight = DEFAULT_PREFERENCES.codeLight;
   if (!isCodeThemeDark(loaded.codeDark) || !loaded.codeChosen) loaded.codeDark = DEFAULT_PREFERENCES.codeDark;
   if (!isNoteView(loaded.noteView)) loaded.noteView = DEFAULT_PREFERENCES.noteView;
+  if (typeof loaded.marksInMargin !== 'boolean') loaded.marksInMargin = DEFAULT_PREFERENCES.marksInMargin;
   // A theme from a later build, or from a device with one this build lacks, reads as the default.
   if (!isTheme(loaded.theme)) loaded.theme = DEFAULT_PREFERENCES.theme;
   // A size that is not one of the steps - another build's, or a half-written store - is the kit's own.

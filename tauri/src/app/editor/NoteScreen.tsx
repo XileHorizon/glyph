@@ -83,7 +83,7 @@ import { titleKey } from '../core/titleKey.ts';
 import { syncWithin } from '../core/sync/engine.ts';
 import { PullToRefresh } from '../notes/PullToRefresh.tsx';
 import { setPreferences, useDarkNow, usePreferences } from '../core/preferences.ts';
-import type { NoteView } from './viewMode.ts';
+import { shownView, type NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
 import { enqueueSummary, onRecordingChanged } from '../ai/summaries.ts';
 import { keptText, summaryBehind, summaryUnchanged } from '../ai/summaryKeep.ts';
@@ -1415,7 +1415,7 @@ export function NoteScreen({
             footClear={!canvas && footSmokes(prefs.wispEdge) ? WISP_EDGE_FOOT_CLEAR : 0}
             onView={setView}
             wispTyping={prefs.wisp}
-            display={typed ? 'mixed' : prefs.noteView}
+            display={typed ? 'mixed' : shownView(prefs)}
             tape={recording}
             tapeId={tape.length > 0 ? tapeId(note.id) : null}
             onImageError={pictures.say}

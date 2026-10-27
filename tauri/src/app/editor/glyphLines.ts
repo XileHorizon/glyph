@@ -44,6 +44,8 @@ const LINE_CLASS: Record<string, string | undefined> = {
 const HANGING = new RegExp(String.raw`^(\s*${MARKER}[ \t]+(?:${BOX}[ \t]+)?)\S`);
 /** A to-do's box inside a marker. */
 const BOX_IN = new RegExp(BOX);
+/** The bullet or number and the space after it: what the Margin view hangs out of the line (editor/viewMode.ts). */
+const BULLET_OUT = new RegExp(String.raw`^(\s*)${MARKER} ?`);
 
 /*
  * How wide a marker is, measured in the editor's own font. Wrapped lines of an
@@ -140,7 +142,12 @@ function buildLines(view: EditorView): DecorationSet {
   for (const at of [...perLine.keys()].sort((a, b) => a - b)) {
     const classes = perLine.get(at)!;
     const marker = classes.includes(styles.lineItem ?? '') ? HANGING.exec(doc.lineAt(at).text)?.[1] : undefined;
-    const attributes = marker ? { style: `--hang: ${markerWidth(view, marker).toFixed(2)}px` } : undefined;
+    // `--hang-rest` is the marker less its bullet: the indent and the box, which is all that stays in the line when the
+    // Margin view hangs the bullet in its column (markdown.module.css).
+    const rest = marker?.replace(BULLET_OUT, '$1');
+    const attributes = marker
+      ? { style: `--hang: ${markerWidth(view, marker).toFixed(2)}px; --hang-rest: ${(rest ? markerWidth(view, rest) : 0).toFixed(2)}px` }
+      : undefined;
     builder.add(at, at, Decoration.line({ class: classes.join(' '), attributes }));
   }
   return builder.finish();

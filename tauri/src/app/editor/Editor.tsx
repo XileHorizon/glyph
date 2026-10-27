@@ -35,7 +35,7 @@ import { formatLooks } from './formatLooks.ts';
 import { wispFormat } from './wispFormat.ts';
 import { textEffects } from './textEffects.ts';
 import { wispArrivals } from './wispArrivals.ts';
-import { noteView, type NoteView } from './viewMode.ts';
+import { noteView, type NoteDisplay } from './viewMode.ts';
 import { findExtension } from './find.ts';
 import { clips, tapeSource } from './clips.ts';
 import { drawnBoards } from './boards.ts';
@@ -157,8 +157,8 @@ interface EditorProps {
    * level as the source. Read once, when the editor is made.
    */
   ripples?: RippleSource;
-  /** The mixed page, marks and formatting both (the default), or just the formatted text (editor/viewMode.ts). */
-  display?: NoteView;
+  /** The mixed page, marks and formatting both (the default), its marks hung in a margin, or just the formatted text (editor/viewMode.ts). */
+  display?: NoteDisplay;
   /**
    * A note drawn small on a card (notes/NotePeek.tsx): the same formatter as the note, but nothing that would fetch,
    * poll or act - no link preview cards, no diagrams, no Notion reads for its marks, no taps on its boxes. Read once,

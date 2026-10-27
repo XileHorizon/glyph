@@ -2,6 +2,7 @@ import { DensitySelector, SegmentedControl, Switch } from '@glacier/react';
 import { hapticsAvailable, setHapticsPref, useHapticsPref } from '../core/haptics.ts';
 import { facesOf, INTERFACE_FACES, isSidebarStyle, setPreferences, themeChoice, TYPEFACES, usePreferences, type MotionSpeed, type Rounding, type SidebarStyle, type TextSize } from '../core/preferences.ts';
 import { useSidebar } from '../core/useWideScreen.ts';
+import { shownView, type NoteDisplay } from '../editor/viewMode.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
 import { PaneSection, SettingRow } from './kit/settingsKit.tsx';
@@ -41,6 +42,28 @@ const ROUNDINGS = optionsOf(ROUNDING_WORDS);
 const TEXT_SIZES = optionsOf(SIZE_WORDS);
 const SPEEDS = optionsOf(SPEED_WORDS);
 
+/**
+ * How a note shows its marks, the header's view switch with the Margin look between its two (editor/viewMode.ts).
+ * Margin is Markdown with `marksInMargin` on, so the header's switch goes between Formatted and whichever of the two
+ * marked looks was chosen here.
+ */
+const NOTE_VIEWS: { value: NoteDisplay; label: string }[] = [
+  { value: 'mixed', label: 'Markdown' },
+  { value: 'margin', label: 'Margin' },
+  { value: 'formatted', label: 'Formatted' },
+];
+
+const NOTE_VIEW_HINTS: Record<NoteDisplay, string> = {
+  mixed: 'The marks sit in the line beside the words they style.',
+  margin: 'A line’s #, - or > hangs in a column to the left, so the words keep one edge. Still editable.',
+  formatted: 'Just the formatted words. A line shows its marks while the caret is on it.',
+};
+
+function chooseNoteView(value: NoteDisplay) {
+  if (value === 'formatted') setPreferences({ noteView: 'formatted' });
+  else setPreferences({ noteView: 'mixed', marksInMargin: value === 'margin' });
+}
+
 const SIDEBAR_MODES: { value: SidebarStyle; label: string }[] = [
   { value: 'popover', label: 'Popover' },
   { value: 'docked', label: 'Docked' },
@@ -58,6 +81,23 @@ export function AppearancePane() {
         <div className="setk-row">
           <ThemeCards value={prefs.theme} onValueChange={(value) => setPreferences(themeChoice(value, prefs))} />
         </div>
+      </PaneSection>
+      <PaneSection title="Notes" description="How a note shows its Markdown marks. The view switch in a note’s header flips between Formatted and the one picked here.">
+        <SettingRow
+          label="Marks"
+          hint={NOTE_VIEW_HINTS[shownView(prefs)]}
+          layout="stacked"
+          control={
+            <SegmentedControl
+              aria-label="Marks"
+              fullWidth
+              size="sm"
+              options={NOTE_VIEWS}
+              value={shownView(prefs)}
+              onValueChange={(value) => chooseNoteView(value as NoteDisplay)}
+            />
+          }
+        />
       </PaneSection>
       {/* The home page's four layouts (home/homeLayout.ts; docs/DESIGN.md §147, §148, §178), each a card that is the page drawn small. */}
       <PaneSection title="Home page" description="How the home page lays out your notebooks and notes. The search and its filters stay on top whichever you pick.">

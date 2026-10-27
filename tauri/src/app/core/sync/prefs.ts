@@ -35,6 +35,7 @@ const SYNCED_PREFS = [
   'codeDark',
   'codeChosen',
   'noteView',
+  'marksInMargin',
   'wisp',
   'wispEdge',
   'ripples',

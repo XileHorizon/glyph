@@ -4,14 +4,14 @@ import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseWhole } from '../../test/syntaxTree.ts';
 import { glyphMarkdown } from './language.ts';
-import { isNoteView, noteView, type NoteView } from './viewMode.ts';
+import { isNoteView, noteView, shownView, type NoteDisplay } from './viewMode.ts';
 
 const doc = ['# Packing', '**Warm** things, _dry_ ones, ~~wet~~ none, and `code` as written: \\*one\\*', '- [ ] Tent', '> Pack light'].join('\n');
 
 let view: EditorView | null = null;
 
-function open(shown: NoteView): EditorView {
-  view = parseWhole(new EditorView({ state: EditorState.create({ doc, extensions: [glyphMarkdown(), noteView(shown)] }), parent: document.body }));
+function open(shown: NoteDisplay, text = doc): EditorView {
+  view = parseWhole(new EditorView({ state: EditorState.create({ doc: text, extensions: [glyphMarkdown(), noteView(shown)] }), parent: document.body }));
   return view;
 }
 /** What a line reads as on the page. */
@@ -64,5 +64,37 @@ describe('the Markdown view', () => {
     expect(isNoteView('mixed')).toBe(true);
     expect(isNoteView('styled')).toBe(false);
     expect(isNoteView(undefined)).toBe(false);
+  });
+});
+
+describe('the Margin view', () => {
+  /** The marks hung in the margin's column, as the page has them. */
+  const hung = (on: EditorView) => [...on.contentDOM.querySelectorAll('.cm-hangMark')].map((mark) => mark.textContent);
+
+  it('hangs a line’s leading mark, with the space after it, and keeps every character on the page', () => {
+    const on = open('margin');
+    expect(hung(on)).toEqual(['# ', '- ', '> ']);
+    expect(line(on, 1)).toBe('# Packing');
+    expect(line(on, 3)).toBe('- [ ] Tent');
+    expect(on.dom.classList.contains('cm-marginMarks')).toBe(true);
+  });
+
+  it('hangs only what starts a line: a nested item’s bullet after its indent, a quote’s > before its list’s dash, never a closing #', () => {
+    const on = open('margin', ['## Done ##', '1. One', '  - Two', '> - Three'].join('\n'));
+    expect(hung(on)).toEqual(['## ', '1. ', '- ', '> ']);
+  });
+
+  it('is the mark still: typing in front of it edits the note', () => {
+    const on = open('margin');
+    on.dispatch({ changes: { from: 0, insert: '#' } });
+    expect(on.state.doc.line(1).text).toBe('## Packing');
+    expect(hung(on)[0]).toBe('## ');
+  });
+
+  it('is Markdown with the margin setting on, and never Formatted', () => {
+    expect(shownView({ noteView: 'mixed', marksInMargin: true })).toBe('margin');
+    expect(shownView({ noteView: 'mixed', marksInMargin: false })).toBe('mixed');
+    expect(shownView({ noteView: 'formatted', marksInMargin: true })).toBe('formatted');
+    expect(isNoteView('margin')).toBe(false);
   });
 });

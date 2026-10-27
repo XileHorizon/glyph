@@ -39,7 +39,7 @@ const labels = (host: HTMLElement, card: string) =>
 
 describe('the Appearance page', () => {
   it('holds the look, the type, the motion and, on a phone, the touch, in that order', () => {
-    expect(titles(show(<AppearancePane />))).toEqual(['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
+    expect(titles(show(<AppearancePane />))).toEqual(['Page', 'Notes', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
   });
 
   it('keeps the two size dials together in Type, beside the two faces', () => {
@@ -54,9 +54,22 @@ describe('the Appearance page', () => {
   it('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', () => {
     phone = false;
     const host = show(<AppearancePane />);
-    expect(titles(host)).toEqual(['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
+    expect(titles(host)).toEqual(['Page', 'Notes', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
     expect(host.querySelector('[aria-label="Haptics"]')).toBeNull();
     expect(host.querySelector('[aria-label="Sidebar"]')).toBeNull();
+  });
+
+  it('sets how a note shows its marks: Markdown, Margin or Formatted, Margin being Markdown with the marks hung in a column', () => {
+    const host = show(<AppearancePane />);
+    const options = () => [...host.querySelectorAll<HTMLInputElement>('[aria-label="Marks"] input[type="radio"]')];
+    expect(options().map((o) => o.closest('label')?.textContent)).toEqual(['Markdown', 'Margin', 'Formatted']);
+    act(() => options()[1]!.click());
+    expect(preferences()).toMatchObject({ noteView: 'mixed', marksInMargin: true });
+    act(() => options()[2]!.click());
+    // Formatted keeps the margin choice, so the header's switch comes back to it.
+    expect(preferences()).toMatchObject({ noteView: 'formatted', marksInMargin: true });
+    act(() => options()[0]!.click());
+    expect(preferences()).toMatchObject({ noteView: 'mixed', marksInMargin: false });
   });
 
   // Each choice a card that is the thing drawn small (LayoutCards.tsx, TopBarCards.tsx; docs/DESIGN.md §178).

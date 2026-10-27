@@ -371,6 +371,29 @@
   text-indent: calc(-1 * var(--hang, 0px));
 }
 
+/*
+ * The Margin view (editor/viewMode.ts): an item's bullet hangs in the column left of the words and takes no room in
+ * the line, so the line hangs only what is left of its marker, the indent and a to-do's box (`--hang-rest`,
+ * glyphLines.ts). A list inside a quote keeps its bullet in the line (the quote's `>` is the one in the column).
+ */
+.editor :global(.cm-marginMarks) :global(.cm-line).lineItem:not(.lineQuote) {
+  padding-inline-start: calc(var(--app-gutter) + var(--hang-rest, 0px));
+  text-indent: calc(-1 * var(--hang-rest, 0px));
+}
+
+/* A quote's `>` reaches back past the quote's bar and the room after it too, to the column every other mark is in. */
+.editor :global(.cm-marginMarks) :global(.cm-line).lineQuote :global(.cm-hangMark) {
+  inline-size: calc(var(--margin-marks) + var(--glacier-shape-accent-edge) + 0.75em);
+  margin-inline-start: calc(-1 * (var(--margin-marks) + var(--glacier-shape-accent-edge) + 0.75em));
+}
+
+/* The page to read's column is wider by the margin, so the words keep their 36rem. */
+@media (min-width: 600px) {
+  :global([data-look='reading']) .editor :global(.cm-marginMarks) :global(.cm-content) {
+    max-inline-size: calc(36rem + 2 * var(--app-gutter) + var(--margin-marks));
+  }
+}
+
 /* A list inside a quote: the quote's margin already holds the gutter, so the hang starts past the bar. */
 .editor :global(.cm-line).lineQuote.lineItem {
   padding-inline-start: calc(var(--glacier-shape-accent-edge) + 0.75em + var(--hang, 0px));

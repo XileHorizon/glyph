@@ -105,8 +105,12 @@ const boardRoom = ViewPlugin.fromClass(
           const line = view.contentDOM.querySelector('.cm-line');
           const style = line ? window.getComputedStyle(line) : null;
           const bleed = style ? parseFloat(style.paddingInlineStart || '0') || 0 : 0;
-          // The whole width the note scrolls in: the board starts where the page's indent does and ends at its edge.
-          return { room: Math.max(160, view.scrollDOM.clientWidth || view.dom.clientWidth), bleed };
+          // The whole width the note scrolls in: the board starts where the page's indent does and ends at its edge. Less
+          // any room the content keeps at its own sides (the Margin view's column of marks, editor/viewMode.ts), which
+          // the board would otherwise add to and widen every line by.
+          const content = window.getComputedStyle(view.contentDOM);
+          const sides = (parseFloat(content.paddingInlineStart) || 0) + (parseFloat(content.paddingInlineEnd) || 0);
+          return { room: Math.max(160, (view.scrollDOM.clientWidth || view.dom.clientWidth) - sides), bleed };
         },
         write: ({ room, bleed }, view) => {
           view.dom.style.setProperty('--cm-board-room', `${room}px`);
