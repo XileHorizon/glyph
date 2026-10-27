@@ -89,13 +89,45 @@ jobs:
           $stderr = Join-Path $env:RUNNER_TEMP 'ghost-md-stderr.txt'
           $shot = Join-Path $env:RUNNER_TEMP 'glyph-flutter-windows.png'
           $process = Start-Process -FilePath (Join-Path $release 'ghost_md.exe') -WorkingDirectory $release -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-          Start-Sleep -Seconds 20
+          Start-Sleep -Seconds 15
           if ($process.HasExited) {
             Write-Output "::error title=Ghost.md launch::The app exited with code $($process.ExitCode)."
             if (Test-Path $stdout) { Get-Content $stdout -Tail 150 | ForEach-Object { Write-Output "::error title=app stdout::$_" } }
             if (Test-Path $stderr) { Get-Content $stderr -Tail 150 | ForEach-Object { Write-Output "::error title=app stderr::$_" } }
             exit 1
           }
+          $native = @'
+          using System;
+          using System.Runtime.InteropServices;
+          public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+          public static class GhostWindow {
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+            [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+            [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+            [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+          }
+          '@
+          Add-Type -TypeDefinition $native
+          $process.Refresh()
+          $handle = $process.MainWindowHandle
+          if ($handle -eq 0) { throw 'Ghost.md did not create a visible window.' }
+          $rect = New-Object RECT
+          if (-not [GhostWindow]::GetWindowRect($handle, [ref]$rect)) { throw 'Could not locate the Ghost.md window.' }
+          [GhostWindow]::SetForegroundWindow($handle) | Out-Null
+          # The account gate's centered guest button is 82% down the app window. Use it so the screenshot proves
+          # the local library and notes UI, not merely that the account gate can open.
+          $guestX = [int](($rect.Left + $rect.Right) / 2)
+          $guestY = [int]($rect.Top + (($rect.Bottom - $rect.Top) * 0.82))
+          [GhostWindow]::SetCursorPos($guestX, $guestY) | Out-Null
+          [GhostWindow]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+          [GhostWindow]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) {
+            Write-Output "::error title=Ghost.md launch::The app exited after opening the local library, code $($process.ExitCode)."
+            if (Test-Path $stderr) { Get-Content $stderr -Tail 150 | ForEach-Object { Write-Output "::error title=app stderr::$_" } }
+            exit 1
+          }
+          [GhostWindow]::SetCursorPos($rect.Right - 8, $rect.Bottom - 8) | Out-Null
           Add-Type -AssemblyName System.Drawing
           Add-Type -AssemblyName System.Windows.Forms
           $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
