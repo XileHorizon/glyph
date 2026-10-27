@@ -148,19 +148,29 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $target = "flutter-windows/${{ github.run_id }}.png"
           $saved = Join-Path $env:RUNNER_TEMP 'glyph-flutter-windows-saved.png'
+          $shots = Join-Path $env:RUNNER_TEMP 'ci-shots-worktree'
           Copy-Item $env:SHOT $saved
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin ci-shots 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            git checkout -B ci-shots origin/ci-shots
+          $hasShotsBranch = $LASTEXITCODE -eq 0
+          if ($hasShotsBranch) {
+            git worktree add --detach $shots origin/ci-shots
           } else {
-            git checkout --orphan ci-shots
-            git read-tree --empty
+            git worktree add --detach $shots HEAD
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create the screenshot worktree.' }
+            git -C $shots checkout --orphan ci-shots
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create the ci-shots branch.' }
+            git -C $shots read-tree --empty
+            if ($LASTEXITCODE -ne 0) { throw 'Could not empty the new ci-shots branch.' }
           }
-          New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
-          Copy-Item $saved $target
-          git add -- $target
-          git commit -m "Add Flutter Windows launch screenshot for run ${{ github.run_id }}"
-          git push origin HEAD:ci-shots
+          if ($LASTEXITCODE -ne 0) { throw 'Could not check out the ci-shots worktree.' }
+          git -C $shots config user.name 'github-actions[bot]'
+          git -C $shots config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          New-Item -ItemType Directory -Force (Split-Path (Join-Path $shots $target)) | Out-Null
+          Copy-Item $saved (Join-Path $shots $target)
+          git -C $shots add -- $target
+          if ($LASTEXITCODE -ne 0) { throw 'Could not stage the launch screenshot.' }
+          git -C $shots commit -m "Add Flutter Windows launch screenshot for run ${{ github.run_id }}"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not commit the launch screenshot.' }
+          git -C $shots push origin HEAD:ci-shots
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish the launch screenshot.' }
           Write-Output "::notice title=Launch screenshot::https://raw.githubusercontent.com/XileHorizon/glyph/ci-shots/$target"
