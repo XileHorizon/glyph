@@ -425,6 +425,7 @@ pub async fn ai_generate(
         }
         let cancel = Arc::new(AtomicBool::new(false));
         let _run = state.begin(&request.id, "format", &cancel);
+        let id = request.id.clone();
         let emitter = app.clone();
         let answer = state.llm().generate(std::path::Path::new(&status.path), Request::from(request), cancel, move |progress| {
             let _ = emitter.emit("ai://progress", progress);
@@ -437,7 +438,7 @@ pub async fn ai_generate(
             .map_err(|e| format!("the formatting run did not finish: {e}"))?
             .map_err(|_| "the formatting engine went away".to_string())?;
         if let Err(failure) = &result {
-            state.log(format!("format {} failed: {failure}", request.id));
+            state.log(format!("format {id} failed: {failure}"));
         }
         result.map_err(|failure| failure.to_string())
     }
@@ -472,7 +473,7 @@ pub fn ai_cancel(state: State<'_, AiState>, id: String) -> bool {
 #[tauri::command]
 pub fn ai_diagnostics(state: State<'_, AiState>) -> Diagnostics {
     #[cfg(not(target_os = "ios"))]
-    let (engine_started, model_loaded) = (state.llm.get().is_some(), state.llm.get().is_some_and(|llm| llm.loaded()));
+    let (engine_started, model_loaded) = (crate::llm::started().is_some(), crate::llm::started().is_some_and(|llm| llm.loaded()));
     #[cfg(target_os = "ios")]
     let (engine_started, model_loaded) = (false, false);
     let mut runs: Vec<RunInfo> = lock(&state.runs)
@@ -610,17 +611,17 @@ pub async fn ai_voice_step(
     }
     #[cfg(not(target_os = "ios"))]
     {
-        let dir = crate::capture_commands::models_dir(&app)?;
+        let dir = crate::paths::models_dir(&app)?;
         let preferred = model::find(&request.preferred_model)
-            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+            .filter(|spec| crate::model_files::status(&dir, &spec.spec).present);
         let fallback = model::find("qwen3.5-2b")
-            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+            .filter(|spec| crate::model_files::status(&dir, &spec.spec).present);
         let Some(spec) = preferred.or(fallback) else {
             return Ok(VoiceStepResult::Unavailable {
                 reason: "No compatible installed model is available for voice commands.".into(),
             });
         };
-        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let status = crate::model_files::status(&dir, &spec.spec);
         let cancel = Arc::new(AtomicBool::new(false));
         let _run = state.begin(&request.id, what, &cancel);
         let engine_request = Request {
@@ -636,6 +637,8 @@ pub async fn ai_voice_step(
             think: false,
             think_budget: 0,
             grammar: Some(grammar),
+            // A voice command is the person waiting: it goes before, and preempts, a write-up's piece.
+            background: false,
         };
         let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, Arc::clone(&cancel), |_| {});
         let received = tauri::async_runtime::spawn_blocking(move || answer.recv_timeout(wait)).await;
