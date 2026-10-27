@@ -4,6 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWasm, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'account/crypto.dart';
 import 'app/front_frames.dart';
@@ -68,6 +69,23 @@ Future<void> main() async {
   if (kIsWeb && !kIsWasm) return runApp(const TooOldBrowser());
   // Flutter's binding, which draws nothing while Android is taking the app from the front (app/front_frames.dart).
   GhostBinding.ensureInitialized();
+  // Windows has no native title bar: the app's own top row carries the drag area and window controls.
+  // Configure that frame before the first Flutter view is shown, so startup never flashes a second title bar.
+  if (!kIsWeb && Platform.isWindows) {
+    await windowManager.ensureInitialized();
+    const options = WindowOptions(
+      size: Size(1280, 760),
+      minimumSize: Size(760, 560),
+      center: true,
+      title: 'Ghost.md',
+      titleBarStyle: TitleBarStyle.hidden,
+      windowButtonVisibility: false,
+    );
+    await windowManager.waitUntilReadyToShow(options, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
   // A build made to be measured times its own start and every frame after (lib/perf); any other does none of it.
   PerfLaunch.begin();
   // Every error nobody catches, from here on, is kept and said (lib/diag/error_log.dart), and in a debug build

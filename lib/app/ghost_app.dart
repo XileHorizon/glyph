@@ -137,7 +137,7 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                   // The Mac app draws under its own title bar, the window's buttons set into the page's top row
                   // (`core/platform.ts`: `data-titlebar='overlay'` where `isMacApp`).
                   // Not in a browser on a Mac: the page has no window buttons in its top row (lib/web).
-                  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) 'titlebar': 'overlay',
+                  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows)) 'titlebar': 'overlay',
                   'tabs': 'on',
                   ...prefs.attrs,
                   // The pace, which the page writes as inline durations; a device asking for less motion is left

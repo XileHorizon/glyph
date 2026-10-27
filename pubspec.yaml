@@ -40,6 +40,7 @@ dependencies:
   # the browser's own IndexedDB, Worker, fetch and WebSocket, by the Dart team's bindings, which shared_preferences
   # and url_launcher already bring for their own web halves. Nothing of it is compiled into the phone's app.
   web: ^1.1.1
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:

@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../notes/tabs/bar_parts.dart';
 import 'desktop/mac_drag_strip.dart';
 import 'desktop/mac_lights.dart';
+import 'desktop/windows_title_bar.dart';
 import 'top_bar.dart';
 
 /// The app's tab bar's own box, on the screens that have one: `.app-tabBar` of the web app's app.css, which App.tsx
@@ -44,7 +46,20 @@ class AppTabBar extends StatelessWidget {
     );
     // The Mac app: the bar's row is the window's title bar, so its empty ground drags the window (`.app-dragBar`,
     // behind the controls, which still take their presses).
-    if (titlebarOverlay(t)) bar = Stack(fit: StackFit.passthrough, children: [const Positioned.fill(child: MacDragStrip()), bar]);
+    if (titlebarOverlay(t)) {
+      if (defaultTargetPlatform == TargetPlatform.windows) {
+        bar = Stack(
+          fit: StackFit.passthrough,
+          children: [
+            const Positioned.fill(child: WindowsDragStrip()),
+            Padding(padding: const EdgeInsets.only(right: windowsCaptionControlsWidth), child: bar),
+            Positioned(top: 0, right: 0, bottom: 0, child: WindowsCaptionControls(dark: t.isDark)),
+          ],
+        );
+      } else {
+        bar = Stack(fit: StackFit.passthrough, children: [const Positioned.fill(child: MacDragStrip()), bar]);
+      }
+    }
     if (split && !islands) {
       // With tabs showing, their own baseline takes over from the bar's hairline: two lines a pixel apart would
       // read as a double rule.

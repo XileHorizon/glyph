@@ -1,0 +1,130 @@
+# Flutter Ghost.md for Windows: build the notes core and desktop app, prove that it launches, and publish a
+# screenshot on the public ci-shots branch so phase-one verification does not require artifact authentication.
+name: Flutter Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/flutter-windows]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flutter-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          cache-on-failure: true
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Tool versions
+        shell: pwsh
+        run: |
+          flutter --version
+          rustc --version
+          cargo --version
+      - name: Build the notes core
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          cargo build --manifest-path native/Cargo.toml --release 2>&1 | Tee-Object native-build.txt
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-Content native-build.txt -Tail 150 | ForEach-Object { Write-Output "::error title=native build::$_" }
+            exit $code
+          }
+      - name: Flutter dependencies
+        run: flutter pub get
+      - name: Analyze Windows changes
+        shell: pwsh
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings --no-pub lib
+      - name: Build Flutter for Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          flutter build windows --release --build-name 2.3.45 --build-number ${{ github.run_number }} *>&1 | Tee-Object flutter-build.txt
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-Content flutter-build.txt -Tail 150 | ForEach-Object { Write-Output "::error title=Flutter Windows build::$_" }
+            exit $code
+          }
+      - name: Bundle the notes core
+        shell: pwsh
+        run: |
+          $release = 'build/windows/x64/runner/Release'
+          Copy-Item 'native/target/release/ghost_core.dll' "$release/ghost_core.dll"
+          if (-not (Test-Path "$release/ghost_md.exe")) { throw 'Ghost.md executable was not built.' }
+          if (-not (Test-Path "$release/ghost_core.dll")) { throw 'ghost_core.dll was not bundled.' }
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ghost-md-flutter-windows
+          path: build/windows/x64/runner/Release
+          if-no-files-found: error
+      - name: Launch Ghost.md and capture the desktop
+        id: launch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = (Resolve-Path 'build/windows/x64/runner/Release').Path
+          $stdout = Join-Path $env:RUNNER_TEMP 'ghost-md-stdout.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'ghost-md-stderr.txt'
+          $shot = Join-Path $env:RUNNER_TEMP 'glyph-flutter-windows.png'
+          $process = Start-Process -FilePath (Join-Path $release 'ghost_md.exe') -WorkingDirectory $release -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Start-Sleep -Seconds 20
+          if ($process.HasExited) {
+            Write-Output "::error title=Ghost.md launch::The app exited with code $($process.ExitCode)."
+            if (Test-Path $stdout) { Get-Content $stdout -Tail 150 | ForEach-Object { Write-Output "::error title=app stdout::$_" } }
+            if (Test-Path $stderr) { Get-Content $stderr -Tail 150 | ForEach-Object { Write-Output "::error title=app stderr::$_" } }
+            exit 1
+          }
+          Add-Type -AssemblyName System.Drawing
+          Add-Type -AssemblyName System.Windows.Forms
+          $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+          $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          $graphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bitmap.Size)
+          $bitmap.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png)
+          $graphics.Dispose()
+          $bitmap.Dispose()
+          if ((Get-Item $shot).Length -lt 10000) { throw 'The launch screenshot is unexpectedly small.' }
+          "screenshot=$shot" >> $env:GITHUB_OUTPUT
+          Stop-Process -Id $process.Id -Force
+      - name: Publish launch screenshot
+        shell: pwsh
+        env:
+          SHOT: ${{ steps.launch.outputs.screenshot }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = "flutter-windows/${{ github.run_id }}.png"
+          $saved = Join-Path $env:RUNNER_TEMP 'glyph-flutter-windows-saved.png'
+          Copy-Item $env:SHOT $saved
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin ci-shots 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            git checkout -B ci-shots origin/ci-shots
+          } else {
+            git checkout --orphan ci-shots
+            git read-tree --empty
+          }
+          New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
+          Copy-Item $saved $target
+          git add -- $target
+          git commit -m "Add Flutter Windows launch screenshot for run ${{ github.run_id }}"
+          git push origin HEAD:ci-shots
+          Write-Output "::notice title=Launch screenshot::https://raw.githubusercontent.com/XileHorizon/glyph/ci-shots/$target"
