@@ -44,7 +44,9 @@ jobs:
           cargo build --manifest-path native/Cargo.toml --release 2>&1 | Tee-Object native-build.txt
           $code = $LASTEXITCODE
           if ($code -ne 0) {
-            Get-Content native-build.txt -Tail 150 | ForEach-Object { Write-Output "::error title=native build::$_" }
+            $tail = Get-Content native-build.txt -Tail 150
+            $important = $tail | Select-String -Pattern 'error(\[|:)|failed|Caused by|fatal|cannot find|not found|unresolved' | Select-Object -Last 10
+            @($important; $tail) | Select-Object -First 150 | ForEach-Object { Write-Output "::error title=native build::$_" }
             exit $code
           }
       - name: Flutter dependencies
@@ -60,7 +62,9 @@ jobs:
           flutter build windows --release --build-name 2.3.45 --build-number ${{ github.run_number }} *>&1 | Tee-Object flutter-build.txt
           $code = $LASTEXITCODE
           if ($code -ne 0) {
-            Get-Content flutter-build.txt -Tail 150 | ForEach-Object { Write-Output "::error title=Flutter Windows build::$_" }
+            $tail = Get-Content flutter-build.txt -Tail 150
+            $important = $tail | Select-String -Pattern 'Error:|error:|FAILED|FAILURE|fatal|CMake Error|Exception' | Select-Object -Last 10
+            @($important; $tail) | Select-Object -First 150 | ForEach-Object { Write-Output "::error title=Flutter Windows build::$_" }
             exit $code
           }
       - name: Bundle the notes core
