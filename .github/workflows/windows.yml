@@ -47,8 +47,17 @@ jobs:
       - run: npm ci
 
       # bindgen (whisper-rs-sys, llama-cpp-sys-2) reads the C headers with libclang, which the runner's LLVM has.
+      # On a failure, the log's last lines are written as the run's error, so they can be read from the run's page and
+      # its public annotations without downloading the log.
       - name: Build the installer
-        run: npx tauri build --bundles nsis
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! npx tauri build --bundles nsis 2>&1 | tee build.log; then
+            tail -n 80 build.log | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}' | sed 's/^/::error title=Build the installer::/'
+            echo
+            exit 1
+          fi
         env:
           LIBCLANG_PATH: C:\Program Files\LLVM\bin
 
@@ -80,6 +89,13 @@ jobs:
           name: ghost-md-windows-first-launch
           path: tauri/windows-first-launch.png
           if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-log
+          path: tauri/build.log
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         with:
