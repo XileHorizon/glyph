@@ -121,6 +121,11 @@ jobs:
           [GhostWindow]::SetCursorPos($guestX, $guestY) | Out-Null
           [GhostWindow]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
           [GhostWindow]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+          Start-Sleep -Seconds 5
+          # A fresh local library opens the first-run tour. Skip it to expose the real library and sample notes.
+          [GhostWindow]::SetCursorPos($rect.Right - 45, $rect.Top + 20) | Out-Null
+          [GhostWindow]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+          [GhostWindow]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
           Start-Sleep -Seconds 10
           if ($process.HasExited) {
             Write-Output "::error title=Ghost.md launch::The app exited after opening the local library, code $($process.ExitCode)."
