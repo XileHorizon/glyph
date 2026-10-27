@@ -29,7 +29,9 @@ function* walk(dir) {
   }
   for (const name of names.sort()) {
     const path = join(dir, name);
-    if (SKIP.test(path)) continue;
+    // Read with forward slashes: on Windows the path has backslashes, SKIP missed node_modules, and the walk stepped
+    // into mcp/node_modules, a link Windows cannot follow, and failed the build.
+    if (SKIP.test(path.split(sep).join('/'))) continue;
     if (statSync(path).isDirectory()) yield* walk(path);
     else yield path;
   }
