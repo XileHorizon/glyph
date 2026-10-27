@@ -135,6 +135,13 @@ fn listed() -> Vec<(PathBuf, String)> {
         .collect()
 }
 
+/// Windows backup-drive discovery is platform plumbing for a later phase. The notes library and its local files
+/// remain available; Settings simply sees no removable backup destinations yet.
+#[cfg(windows)]
+fn listed() -> Vec<(PathBuf, String)> {
+    Vec::new()
+}
+
 // ---- the Mac's drives --------------------------------------------------------------------------
 
 /// What `diskutil` said of each mounted volume, by its path and device, so it is asked once while it stays mounted.
@@ -228,6 +235,16 @@ fn free_bytes(path: &Path) -> Option<u64> {
 #[allow(clippy::unnecessary_cast)]
 fn total_bytes(path: &Path) -> Option<u64> {
     statvfs(path).map(|stat| stat.f_blocks as u64 * stat.f_frsize as u64)
+}
+
+#[cfg(windows)]
+fn free_bytes(_path: &Path) -> Option<u64> {
+    None
+}
+
+#[cfg(windows)]
+fn total_bytes(_path: &Path) -> Option<u64> {
+    None
 }
 
 #[cfg(not(any(unix, windows)))]
