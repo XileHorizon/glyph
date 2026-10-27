@@ -29,6 +29,7 @@ import '../core/iphone_app.dart' show recordsVoice;
 List<SettingsFindable> appearanceFindable({required bool wide, required bool haptics, bool simple = false}) => [
       ...experienceFindable,
       const SettingsFindable('Page', 'theme light dark system dawn boreal ember'),
+      const SettingsFindable('Marks', 'notes markdown margin formatted symbols hashes headings bullets view'),
       if (simple) ...[
         const SettingsFindable('Type', 'text font'),
         const SettingsFindable('Text size', 'font bigger smaller larger'),
@@ -156,12 +157,32 @@ class AppearancePane extends StatelessWidget {
         // How much of the app there is, first in either mode: in Simple it is the way to the rest of these cards.
         final mode = modeSection(prefs: prefs, store: store);
 
-        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize])]);
+        // How a note shows its marks: in line (Markdown), in a column of their own left of the words (Margin), or
+        // hidden (Formatted). Margin is Markdown with `marksInMargin` on, so the view stored stays one of the two.
+        final marks = PaneSection(
+          title: 'Notes',
+          description: const Text("Markdown's marks say how a line looks. Keep them in the line, hang them in a margin so every line's words start at one edge, or hide them."),
+          children: [
+            SettingRow(
+              label: 'Marks',
+              layout: SettingRowLayout.stacked,
+              control: segments(
+                'Marks',
+                const {'mixed': 'Markdown', 'margin': 'Margin', 'formatted': 'Formatted'},
+                prefs.noteView == 'formatted' ? 'formatted' : (prefs.marksInMargin ? 'margin' : 'mixed'),
+                (value) => set((now) => now.copyWith(noteView: value == 'formatted' ? 'formatted' : 'mixed', marksInMargin: value == 'margin' ? true : (value == 'mixed' ? false : null))),
+              ),
+            ),
+          ],
+        );
+
+        if (prefs.simple) return PaneBody(children: [mode, page, marks, PaneSection(title: 'Type', description: sample, children: [textSize])]);
 
         return PaneBody(
           children: [
             mode,
             page,
+            marks,
             // The home page's four layouts, each a card that is the page drawn small.
             PaneSection(
               title: 'Home page',

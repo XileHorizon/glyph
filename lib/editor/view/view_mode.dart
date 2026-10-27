@@ -16,11 +16,14 @@ import '../state/rangeset.dart';
 import '../state/state.dart';
 import 'decoration.dart';
 import 'lines.dart';
+import 'margin_marks.dart';
 import 'plugin.dart';
 import 'syntax_tree.dart';
 
-/// `NoteView`: `mixed` or `formatted`.
-enum NoteView { mixed, formatted }
+/// `NoteView`: `mixed` or `formatted`, or `margin`, Markdown with a line's leading mark in a column of its own
+/// (margin_marks.dart). Margin is never stored as the view: it is `mixed` with `Preferences.marksInMargin` on
+/// ([shownView]), so a device on an older build reading the synced preferences still sees one of the two it knows.
+enum NoteView { mixed, formatted, margin }
 
 /// The syntax nodes a styled note hides: marks that only style the words beside them.
 const Set<String> _hidden = <String>{'EmphasisMark', 'StrikethroughMark', 'HeaderMark', 'QuoteMark'};
@@ -83,8 +86,18 @@ final ViewPlugin<_Styled> _styled = ViewPlugin.define<_Styled>(
 /// Whether the note is shown Formatted, for what hides its own marks there too (a blank's braces).
 final Facet<bool, bool> formattedView = Facet.define<bool, bool>(combine: (values) => values.any((value) => value));
 
-/// The extension for a view: Formatted hides the marks; Markdown, the mixed page, adds nothing.
-Extension noteView(NoteView view) => view == NoteView.formatted ? Extension.list(<Extension>[_styled, formattedView.of(true)]) : const Extension.list(<Extension>[]);
+/// The extension for a view: Formatted hides the marks; Margin hangs the leading ones; Markdown adds nothing.
+Extension noteView(NoteView view) => switch (view) {
+  NoteView.formatted => Extension.list(<Extension>[_styled, formattedView.of(true)]),
+  NoteView.margin => marginMarks(),
+  NoteView.mixed => const Extension.list(<Extension>[]),
+};
+
+/// What a note is drawn as, from the stored view and the Margin setting.
+NoteView shownView(String noteView, {required bool marksInMargin}) {
+  final view = noteViewNamed(noteView) ?? NoteView.mixed;
+  return view == NoteView.mixed && marksInMargin ? NoteView.margin : view;
+}
 
 /// `isNoteView`, for a stored preference: the two names.
 NoteView? noteViewNamed(Object? value) => switch (value) {

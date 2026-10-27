@@ -33,6 +33,13 @@ double _modeAbove(WidgetTester tester) {
   return top('Page') - top('Mode');
 }
 
+/// What Margin's Notes card (Kevin, 2026-10-27), which the web's page did not have, adds under Page: the card and
+/// its gap, and every card from Home page down that much further.
+double _notesAbove(WidgetTester tester) {
+  double top(String title) => tester.getRect(find.byWidgetPredicate((w) => w is PaneSection && w.title == title)).top;
+  return top('Home page') - top('Notes');
+}
+
 /// What the Market's themes and faces (Matt, 2026-10-26: "include some more themes, fonts") add to the web's page,
 /// which was measured with six themes, five note faces and three interface faces: the rows of cards they make, each
 /// as tall as a card and the gap under it here. `page` is Page's growth, `type` Type's.
@@ -91,7 +98,7 @@ void main() {
   group('the Appearance page', () {
     testWidgets('holds the look, the type, the motion and, on a phone, the touch, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
+      expect(_titles(tester), ['Mode', 'Page', 'Notes', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
       await endSettings(tester);
     });
 
@@ -106,13 +113,13 @@ void main() {
       expect(sample.style!.fontSize, closeTo(36.6157, 0.01));
       expect(sample.style!.letterSpacing, closeTo(-1.6477, 0.001));
       expect(sample.style!.fontWeight, FontWeight.w700);
-      expect(tester.getRect(find.byKey(const ValueKey('settings-sample'))), rectNear(31.23, 2297.75 + _modeAbove(tester) + _marketRows(tester).page, 327.53, 36.61, 2.5));
+      expect(tester.getRect(find.byKey(const ValueKey('settings-sample'))), rectNear(31.23, 2297.75 + _modeAbove(tester) + _notesAbove(tester) + _marketRows(tester).page, 327.53, 36.61, 2.5));
       await endSettings(tester);
     });
 
     testWidgets('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', (tester) async {
       await _alone(tester, const AppearancePane(hasMotor: false));
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
+      expect(_titles(tester), ['Mode', 'Page', 'Notes', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
       expect(find.text('Haptics'), findsNothing);
       expect(find.text('Sidebar'), findsNothing);
       expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Haptics'))));
@@ -480,7 +487,7 @@ void main() {
       expect(find.descendant(of: find.byType(ScaleCards), matching: find.text('Default')), findsOneWidget);
       // Measured on the page: five cards 56.58 x 84.08, 8.93 apart; and the piece's icon 0.7em of each step.
       final first = find.ancestor(of: _within('Interface size', find.text('85%')), matching: find.byType(AnimatedContainer)).first;
-      expect(tester.getRect(first), rectNear(35.7, 3530.88 + _modeAbove(tester) + _marketRows(tester).page + _marketRows(tester).type, 56.58, 84.08, 3.5));
+      expect(tester.getRect(first), rectNear(35.7, 3530.88 + _modeAbove(tester) + _notesAbove(tester) + _marketRows(tester).page + _marketRows(tester).type, 56.58, 84.08, 3.5));
       expect(tester.getRect(first).size.width, closeTo(56.58, 0.05));
       expect(tester.getRect(first).size.height, closeTo(84.08, 0.6));
       final icons = tester.widgetList<Container>(_within('Interface size', find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).borderRadius != null && w.constraints?.maxWidth == w.constraints?.maxHeight && (w.constraints?.maxWidth ?? 99) < 16)));
@@ -561,7 +568,7 @@ void main() {
         final rect = card(entry.key);
         final at = order.indexOf(entry.key);
         final grown = entry.key == 'Page' ? market.page : entry.key == 'Type' ? market.type : 0.0;
-        final below = (at > 0 ? market.page : 0.0) + (at > order.indexOf('Type') ? market.type : 0.0);
+        final below = (at > 0 ? market.page + _notesAbove(tester) : 0.0) + (at > order.indexOf('Type') ? market.type : 0.0);
         expect(rect.left, closeTo(22.31, 0.05), reason: entry.key);
         expect(rect.width, closeTo(345.38, 0.05), reason: entry.key);
         expect(rect.height, closeTo(entry.value.$2 + grown, 2), reason: '${entry.key}’s height');

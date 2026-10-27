@@ -26,6 +26,7 @@ import '../state/text.dart';
 import '../state/state.dart';
 import 'decoration.dart';
 import 'editor_view.dart';
+import 'margin_marks.dart';
 import 'plugin.dart';
 import 'syntax_tree.dart';
 
@@ -85,6 +86,27 @@ double _markerWidth(EditorViewLike view, String marker) {
 /// screen was put to the pattern on every letter. A marker is a bullet or a number.
 final LineFact<String> _markers = LineFact<String>((text) => _hanging.firstMatch(text)?.group(1));
 
+/// Margin's hang for a line with a leading mark (margin_marks.dart): the words start the column's width in from the
+/// line's edge (after its indent), and the mark hangs back by that width, or by its own where it is wider, so a
+/// `#####` reaches into the page's edge instead of pushing its words over. `--hang-indent` is the indent's width,
+/// which the words keep. Null for a line with no leading mark.
+Map<String, String>? _marginHang(EditorViewLike view, String text, List<String> classes) {
+  if (view is! EditorView) return null;
+  final look = view.look;
+  if (look == null) return null;
+  final heading = classes.any((c) => c == MarkdownClass.lineH1 || c == MarkdownClass.lineH2 || c == MarkdownClass.lineH3 || c == MarkdownClass.lineH4);
+  final found = leadingMark(text, heading: heading, item: classes.contains(MarkdownClass.lineItem), quote: classes.contains(MarkdownClass.lineQuote));
+  if (found == null) return null;
+  final indent = found.indent.isEmpty ? 0.0 : layoutUnitCeil(view.measureText(<(String, String?)>[(found.indent, null)]));
+  final mark = layoutUnitCeil(view.measureText(<(String, String?)>[(found.mark, marginMarkClass)]));
+  final column = marginColumn(look.env.body);
+  final hang = indent + (mark > column ? mark : column);
+  return <String, String>{
+    'style': '--hang: ${hang.toStringAsFixed(2)}px; --hang-indent: ${indent.toStringAsFixed(2)}px',
+    'data-hang-chars': '${found.indent.length + found.mark.length}',
+  };
+}
+
 DecorationSet _buildLines(EditorViewLike view) {
   final doc = view.state.doc;
   // One line can be covered by more than one node (a heading inside a quote is both), so classes gather for each
@@ -128,8 +150,16 @@ DecorationSet _buildLines(EditorViewLike view) {
   // `RangeSetBuilder.add` must be called in ascending order, and a line decoration's range must be empty and sit
   // at the line's start.
   final builder = RangeSetBuilder<Decoration>();
+  final margin = view.state.facet(marginView);
   for (final at in perLine.keys.toList()..sort()) {
     final classes = perLine[at]!;
+    if (margin) {
+      final hung = _marginHang(view, doc.lineAt(at).text, classes);
+      if (hung != null) {
+        builder.add(at, at, Decoration.line(className: <String>[...classes, marginLineClass].join(' '), attributes: hung));
+        continue;
+      }
+    }
     final marker = classes.contains(MarkdownClass.lineItem) ? _markers.at(doc, doc.lineAt(at).number) : null;
     final attributes = marker == null ? null : <String, String>{'style': '--hang: ${_markerWidth(view, marker).toStringAsFixed(2)}px', 'data-hang-chars': '${marker.length}'};
     builder.add(at, at, Decoration.line(className: classes.join(' '), attributes: attributes));
@@ -172,6 +202,8 @@ class _GlyphLines extends PluginValue {
         update.viewportChanged ||
         // The text size setting: the markers are a different width now.
         update.geometryChanged ||
+        // Margin chosen or left: every hung line hangs differently.
+        update.startState.facet(marginView) != update.state.facet(marginView) ||
         !identical(syntaxTree(update.startState), syntaxTree(update.state))) {
       _remeasure = false;
       decorations = _buildLines(update.view);

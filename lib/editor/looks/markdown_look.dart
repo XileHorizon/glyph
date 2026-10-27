@@ -18,6 +18,7 @@ library;
 
 import 'package:flutter/painting.dart' show Radius;
 
+import '../view/margin_marks.dart';
 import 'look.dart';
 
 /// The class names of markdown.module.css, as `styles.name` is in the web's TypeScript.
@@ -40,6 +41,19 @@ double _weight(LookEnv e, String name) => e.t.len('glacier-font-weight-$name');
 
 /// `--hang`, the marker's measured width, from the line's `style` attribute (glyph_lines.dart); `var(--hang, 0px)`.
 double _hang(Props p) => p.element?.styleLength('--hang') ?? 0;
+
+/// Margin's column (margin_marks.dart): room at the start of every line while the editor says `data-marks="margin"`,
+/// as the page's `.cm-marginMarks .cm-content { padding-inline-start: var(--margin-marks) }`. Nothing otherwise.
+double _marks(LookEnv e) => e.attrs[marginAttribute] == 'margin' ? marginColumn(e.body) : 0;
+
+/// The mark in Margin's column, at the note's own size and weight whatever its line is set in (`.cm-hangMark`).
+void _marginMark(Props p, LookEnv e) {
+  p
+    ..fontSize = e.body
+    ..weight = _weight(e, 'regular')
+    ..trackingPx(0)
+    ..color = e.t.color('glacier-text-subtle');
+}
 
 bool _first(LookElement el, LineContext c) => c.first;
 bool _afterNoFront(LookElement el, LineContext c) => c.after == 'cm-frontNone';
@@ -212,7 +226,7 @@ final LookSheet markdownLook = LookSheet('editor/markdown.module.css', <LookRule
     classes: 2,
     box: (p, e) {
       p
-        ..paddingStart = e.gutter
+        ..paddingStart = e.gutter + _marks(e)
         ..paddingEnd = e.gutter;
     },
   ),
@@ -243,7 +257,7 @@ final LookSheet markdownLook = LookSheet('editor/markdown.module.css', <LookRule
     box: (p, e) {
       final edge = e.t.len('glacier-shape-accent-edge');
       p
-        ..marginStart = e.gutter
+        ..marginStart = e.gutter + _marks(e)
         ..marginEnd = e.gutter
         ..paddingStart = edge + p.em(0.75)
         ..paddingEnd = 0
@@ -282,7 +296,7 @@ final LookSheet markdownLook = LookSheet('editor/markdown.module.css', <LookRule
     classes: 3,
     box: (p, e) {
       p
-        ..paddingStart = e.gutter + _hang(p)
+        ..paddingStart = e.gutter + _marks(e) + _hang(p)
         ..textIndent = -_hang(p);
     },
   ),
@@ -320,7 +334,7 @@ final LookSheet markdownLook = LookSheet('editor/markdown.module.css', <LookRule
         // (`.lineQuote`, the rule before this). A block of code in a quote is the card alone, with no bar down it.
         ..barWidth = 0
         ..barColor = null
-        ..marginStart = e.gutter
+        ..marginStart = e.gutter + _marks(e)
         ..marginEnd = e.gutter
         ..paddingStart = p.em(0.85)
         ..paddingEnd = p.em(0.85)
@@ -360,4 +374,24 @@ final LookSheet markdownLook = LookSheet('editor/markdown.module.css', <LookRule
   ),
   // .editor .cm-line.lineHr { color: var(--glacier-text-subtle); }
   LookRule(MarkdownClass.lineHr, (p, e) => p.color = e.t.color('glacier-text-subtle'), classes: 3),
+
+  // --- Margin (margin_marks.dart) --------------------------------------------------------------------------------
+
+  // A line whose leading mark hangs in the column: its words start after its indent, and its mark hangs back by
+  // `--hang` (the column, or the mark where it is wider). After the list's and the quote's own, which it overrides.
+  LookRule(
+    marginLineClass,
+    null,
+    classes: 5,
+    box: (p, e) {
+      final indent = p.element?.styleLength('--hang-indent') ?? 0;
+      final quote = p.element?.has(MarkdownClass.lineQuote) ?? false;
+      p
+        ..paddingStart = (quote ? e.t.len('glacier-shape-accent-edge') + p.em(0.75) : e.gutter + _marks(e)) + indent
+        ..textIndent = -_hang(p);
+    },
+  ),
+  // The mark itself; and what is inside it, so a heading's own class under it does not set it large again.
+  LookRule(marginMarkClass, _marginMark, classes: 2),
+  LookRule.under(marginMarkClass, _marginMark, classes: 2),
 ]);

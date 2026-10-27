@@ -1736,7 +1736,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       value: _typed && _source ? _saving.body : widget.note.body,
       onChange: _onChange,
       onView: _onView,
-      display: _typed ? NoteView.mixed : (noteViewNamed(prefs.noteView) ?? NoteView.mixed),
+      display: _typed ? NoteView.mixed : shownView(prefs.noteView, marksInMargin: prefs.marksInMargin),
       readOnly: widget.readOnly,
       look: look?.name,
       zoom: _zoom.value,

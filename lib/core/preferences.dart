@@ -401,6 +401,7 @@ class Preferences {
     this.codeDark = 'pastel',
     this.codeChosen = false,
     this.noteView = 'mixed',
+    this.marksInMargin = false,
     this.openNotes = const [],
     this.tabGroups = TabGroups.none,
     this.workspaces = const KeptWorkspaces(),
@@ -443,6 +444,7 @@ class Preferences {
     String word(String key, String fallback) => map[key] is String ? map[key] as String : fallback;
 
     final codeChosen = truthy('codeChosen');
+    final marksInMargin = truthy('marksInMargin');
     final homeLayoutChosen = truthy('homeLayoutChosen');
     final experienceChosen = truthy('experienceChosen');
     final syncMeetingRecordingsChosen = truthy('syncMeetingRecordingsChosen');
@@ -496,6 +498,7 @@ class Preferences {
       codeDark: isCodeThemeDark(codeDark) && codeChosen ? codeDark as String : d.codeDark,
       codeChosen: codeChosen,
       noteView: isNoteView(noteView) ? noteView as String : d.noteView,
+      marksInMargin: marksInMargin,
       // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
       openNotes: List.unmodifiable(ids.length > mostTabs ? ids.sublist(ids.length - mostTabs) : ids),
       tabGroups: TabGroups.fromJson(map['tabGroups']),
@@ -619,6 +622,10 @@ class Preferences {
   /// How notes are shown: `mixed` or `formatted`.
   final String noteView;
 
+  /// Margin (lib/editor/view/margin_marks.dart): with [noteView] `mixed`, a line's leading mark hangs in a column left
+  /// of the words. Its own key, as the Tauri app's `marksInMargin`, so a build that knows two views still reads one.
+  final bool marksInMargin;
+
   /// The notes left open as tabs, oldest first, at most [mostTabs].
   final List<String> openNotes;
 
@@ -680,7 +687,7 @@ class Preferences {
     'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
     'assist', 'textSize', 'typeface', //
     'noteFace', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
-    'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
+    'codeDark', 'codeChosen', 'noteView', 'marksInMargin', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications',
   };
 
@@ -714,6 +721,7 @@ class Preferences {
     String? codeDark,
     bool? codeChosen,
     String? noteView,
+    bool? marksInMargin,
     List<String>? openNotes,
     TabGroups? tabGroups,
     KeptWorkspaces? workspaces,
@@ -765,6 +773,7 @@ class Preferences {
         codeDark: codeDark ?? this.codeDark,
         codeChosen: codeChosen ?? this.codeChosen,
         noteView: noteView ?? this.noteView,
+        marksInMargin: marksInMargin ?? this.marksInMargin,
         openNotes: openNotes ?? this.openNotes,
         tabGroups: tabGroups ?? this.tabGroups,
         workspaces: workspaces ?? this.workspaces,
@@ -819,6 +828,8 @@ class Preferences {
         'codeDark': codeDark,
         'codeChosen': codeChosen,
         'noteView': noteView,
+        // Only when on: off, the stored shape is the web app's own, which has no such key.
+        if (marksInMargin) 'marksInMargin': true,
         'openNotes': openNotes,
         'tabGroups': tabGroups.toJson(),
         'workspaces': workspaces.toJson(),

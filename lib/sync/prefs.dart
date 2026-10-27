@@ -64,6 +64,7 @@ const List<String> syncedPrefs = [
   'codeDark',
   'codeChosen',
   'noteView',
+  'marksInMargin',
   'wisp',
   'wispEdge',
   'ripples',
