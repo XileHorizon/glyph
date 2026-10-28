@@ -49,7 +49,7 @@ double _marks(LookEnv e) => e.attrs[marginAttribute] == 'margin' ? marginColumn(
 /// The mark in Margin's column, at the note's own size and weight whatever its line is set in (`.cm-hangMark`).
 void _marginMark(Props p, LookEnv e) {
   p
-    ..fontSize = e.body
+    ..fontSize = e.body * marginMarkScale
     ..weight = _weight(e, 'regular')
     ..trackingPx(0)
     ..color = e.t.color('glacier-text-subtle');
@@ -394,4 +394,16 @@ final LookSheet markdownLook = LookSheet('editor/markdown.module.css', <LookRule
   // The mark itself; and what is inside it, so a heading's own class under it does not set it large again.
   LookRule(marginMarkClass, _marginMark, classes: 2),
   LookRule.under(marginMarkClass, _marginMark, classes: 2),
+  // The indent before a hung mark takes no room in the column, so every mark starts on one rail whatever its depth;
+  // the words keep the indent (`--hang-indent`), so a nested item is still nested.
+  LookRule(marginIndentClass, (p, e) => p..fontSize = 0.01..trackingPx(0), classes: 2),
+  // Margin is set tighter than the other views (Kevin, 2026-10-28: "the line spacing feels a little too generous"):
+  // the lines closer, and less room over a heading.
+  LookRule('cm-line', (p, e) {
+    if (_marks(e) > 0) p.lineHeight = marginLineHeight;
+  }, classes: 2),
+  for (final (name, space) in const <(String, int)>[(MarkdownClass.lineH1, 5), (MarkdownClass.lineH2, 5), (MarkdownClass.lineH3, 4), (MarkdownClass.lineH4, 4)])
+    LookRule(name, null, classes: 3, box: (p, e) {
+      if (_marks(e) > 0) p.paddingTop = e.t.space(space);
+    }),
 ]);

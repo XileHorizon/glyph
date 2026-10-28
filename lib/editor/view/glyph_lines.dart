@@ -98,9 +98,14 @@ Map<String, String>? _marginHang(EditorViewLike view, String text, List<String> 
   final found = leadingMark(text, heading: heading, item: classes.contains(MarkdownClass.lineItem), quote: classes.contains(MarkdownClass.lineQuote));
   if (found == null) return null;
   final indent = found.indent.isEmpty ? 0.0 : layoutUnitCeil(view.measureText(<(String, String?)>[(found.indent, null)]));
-  final mark = layoutUnitCeil(view.measureText(<(String, String?)>[(found.mark, marginMarkClass), if (found.box.isNotEmpty) (found.box, MarkdownClass.taskMarker)]));
+  final mark = layoutUnitCeil(view.measureText(<(String, String?)>[(found.mark, marginMarkClass), if (found.box.isNotEmpty) (found.box, marginMarkClass)]));
   final column = marginColumn(look.env.body);
-  final hang = indent + (mark > column ? mark : column);
+  // The indent before the mark is squeezed to nothing in the column (`marginIndent`), so the mark starts at the rail
+  // whatever its depth: the hang is the indent the words keep, and the column (or the mark, where it is wider).
+  // A quote's words start past its bar and the room after it (markdown_look.dart `.lineQuote`): its `>` hangs back
+  // over that too, so it is on the rail with the others.
+  final quoted = found.mark.startsWith('>') ? look.env.t.len('glacier-shape-accent-edge') + look.env.body * 0.75 : 0.0;
+  final hang = indent + (mark > column ? mark : column) + quoted;
   return <String, String>{
     'style': '--hang: ${hang.toStringAsFixed(2)}px; --hang-indent: ${indent.toStringAsFixed(2)}px',
     'data-hang-chars': '${found.indent.length + found.mark.length + found.box.length}',

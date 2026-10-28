@@ -56,6 +56,11 @@ void main() {
     for (final at in [0, _note.indexOf('- An'), _note.indexOf('###### ')]) {
       expect(view.coordsAtPos(at)!.left, lessThan(edge - 4), reason: 'mark at $at');
     }
+    // Every mark starts on one rail, the quote's `>` too.
+    final rail = view.coordsAtPos(0)!.left;
+    for (final at in [_note.indexOf('- An'), _note.indexOf('- [ ]'), _note.indexOf('> A'), _note.indexOf('###### ')]) {
+      expect(view.coordsAtPos(at)!.left, moreOrLessEquals(rail, epsilon: 1), reason: 'mark at $at');
+    }
     // A `#` in a block of code is code, not a mark: it stays in its card's line.
     expect(view.coordsAtPos(_note.indexOf('# not'))!.left, greaterThan(edge - 1));
     // The quote's words are after its bar, past the edge, as in the other views.

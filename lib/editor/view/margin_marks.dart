@@ -41,12 +41,26 @@ const String marginLineClass = 'lineMarginMark';
 /// The class of the mark itself, in the column.
 const String marginMarkClass = 'marginMark';
 
-/// The column's width for a note set at [body]: three times the note's size, as the page's `--margin-marks`.
-double marginColumn(double body) => body * 3;
+/// The class of a hung mark's indent, which takes no room in the column: every mark starts on one rail.
+const String marginIndentClass = 'marginIndent';
+
+/// How large the column's marks are, of the note's size: a little under it, so `######` and `- [x]` fit the rail.
+const double marginMarkScale = 0.8;
+
+/// Margin's line height, tighter than the other views' 1.6.
+const double marginLineHeight = 1.4;
+
+/// The column's width for a note set at [body]: room for the widest mark, `###### `, at [marginMarkScale] in the
+/// note's face. Fixed: every mark starts at its left edge, a rail down the side of the note (Kevin, 2026-10-28: "like
+/// a timeline or place marker along that side edge").
+double marginColumn(double body) => body * 3.4;
 
 /// A line's leading mark: its indent, the mark (`#` to `######`, a bullet or a number, a quote's `>`) and the one
 /// space after it. Only the first thing on the line: a list inside a quote hangs the quote's `>`.
 final RegExp _leading = RegExp('^([ \\t]*)(#{1,6}(?=[ \\t]|\$)|$markerPattern(?=[ \\t]|\$)|>)([ \\t]?)((?:$boxPattern)[ \\t]?)?');
+
+/// A to-do's box and the space after it, right after a bullet.
+final RegExp _box = RegExp('(?:$boxPattern)[ \\t]?');
 
 /// What a line's leading mark is: `indent` (spaces before it), `mark` (the mark and the space after it). Null for a
 /// line that has none. [heading], [item] and [quote] say which blocks the line is in, so a `-` in a paragraph, or a
@@ -68,6 +82,7 @@ DecorationSet _marks(EditorViewLike view) {
   final state = view.state;
   final doc = state.doc;
   final mark = Decoration.mark(className: marginMarkClass);
+  final indent = Decoration.mark(className: marginIndentClass);
   var last = -1;
   for (final range in view.visibleRanges) {
     syntaxTree(state).iterate(
@@ -85,6 +100,12 @@ DecorationSet _marks(EditorViewLike view) {
         if (node.from < last || doc.sliceString(line.from, node.from).trim().isNotEmpty) return null;
         var end = node.to;
         if (end < line.to && (doc.sliceString(end, end + 1) == ' ' || doc.sliceString(end, end + 1) == '\t')) end += 1;
+        // A to-do's box rides with its bullet on the rail, at the marks' size.
+        if (item) {
+          final box = _box.matchAsPrefix(doc.sliceString(end, line.to));
+          if (box != null) end += box.end;
+        }
+        if (node.from > line.from) builder.add(line.from, node.from, indent);
         builder.add(node.from, end, mark);
         last = end;
         return null;
