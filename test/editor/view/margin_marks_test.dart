@@ -49,7 +49,10 @@ void main() {
     final view = await _show(tester, NoteView.margin);
     expect(view.state.facet(marginView), isTrue);
     final edge = _wordsX(view, 'Some words');
-    for (final words in ['One', 'An item', 'A task', 'Six']) {
+    // A to-do's box is at the edge, in line with the body; a bullet item's words just past the bullet drawn there.
+    expect(_wordsX(view, '[ ] A task'), moreOrLessEquals(edge, epsilon: 0.5));
+    expect(_wordsX(view, 'An item'), inInclusiveRange(edge + 4, edge + 30));
+    for (final words in ['One', 'Six']) {
       expect(_wordsX(view, words), moreOrLessEquals(edge, epsilon: 0.5), reason: words);
     }
     // Each mark sits left of the edge, in the column.

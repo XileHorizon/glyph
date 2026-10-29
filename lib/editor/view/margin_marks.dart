@@ -22,11 +22,18 @@
 /// page's edge instead, so its words keep the same edge too.
 library;
 
+import 'package:flutter/widgets.dart' hide Decoration;
+import 'package:glacier/glacier.dart';
+
 import '../../core/item_syntax.dart';
+import '../looks/look.dart' show layoutUnitCeil;
 import '../state/rangeset.dart';
 import '../state/state.dart';
 import 'decoration.dart';
+import 'editor_view.dart';
+import 'line.dart' show EditorRunScope;
 import 'plugin.dart';
+import 'widget.dart';
 import 'syntax_tree.dart';
 
 /// Whether the note is shown in Margin, for what draws the lines (glyph_lines.dart).
@@ -57,26 +64,96 @@ double marginColumn(double body) => body * 3.4;
 
 /// A line's leading mark: its indent, the mark (`#` to `######`, a bullet or a number, a quote's `>`) and the one
 /// space after it. Only the first thing on the line: a list inside a quote hangs the quote's `>`.
-final RegExp _leading = RegExp('^([ \\t]*)(#{1,6}(?=[ \\t]|\$)|$markerPattern(?=[ \\t]|\$)|>)([ \\t]?)((?:$boxPattern)[ \\t]?)?');
+final RegExp _leading = RegExp('^([ \\t]*)(#{1,6}(?=[ \\t]|\$)|$markerPattern(?=[ \\t]|\$)|>)([ \\t]?)');
 
-/// A to-do's box and the space after it, right after a bullet.
-final RegExp _box = RegExp('(?:$boxPattern)[ \\t]?');
+/// A to-do's box, where the words would start.
+final RegExp _box = RegExp('^(?:$boxPattern)');
 
-/// What a line's leading mark is: `indent` (spaces before it), `mark` (the mark and the space after it). Null for a
-/// line that has none. [heading], [item] and [quote] say which blocks the line is in, so a `-` in a paragraph, or a
-/// `#` the parser did not take as a heading, is left where it is.
-({String indent, String mark, String box})? leadingMark(String text, {required bool heading, required bool item, required bool quote}) {
+/// A bullet list's own sign, not a number.
+final RegExp _bulletSign = RegExp('^$bulletPattern\$');
+
+/// The bullets drawn before a bullet item's words, one for each depth and round again: filled, open, square.
+const List<String> _bullets = <String>['•', '◦', '▪'];
+
+/// What a line's leading mark is: `indent` (spaces before it), `mark` (the mark and the space after it), and for an
+/// item of a bullet list that is not a to-do, the `bullet` drawn before its words (Kevin, 2026-10-29: "add nice
+/// bullets in line for lists, maybe not for checklists"); a to-do's box stays with its words, at the body's edge.
+/// Null for a line that has none. [heading], [item] and [quote] say which blocks the line is in, so a `-` in a
+/// paragraph, or a `#` the parser did not take as a heading, is left where it is.
+({String indent, String mark, String? bullet})? leadingMark(String text, {required bool heading, required bool item, required bool quote}) {
   final found = _leading.firstMatch(text);
   if (found == null) return null;
   final sign = found.group(2)!;
   final kind = sign.startsWith('#') ? heading : (sign == '>' ? quote : item);
   if (!kind) return null;
-  // A to-do's box hangs with its bullet, so the words, and the lines they wrap onto, start at the edge.
-  return (indent: found.group(1)!, mark: '$sign${found.group(3)!}', box: kind && sign != '>' && !sign.startsWith('#') ? found.group(4) ?? '' : '');
+  final indent = found.group(1)!;
+  String? bullet;
+  if (item && _bulletSign.hasMatch(sign) && !_box.hasMatch(text.substring(found.end))) {
+    final columns = indent.replaceAll('\t', '    ').length;
+    bullet = _bullets[(columns ~/ 2) % _bullets.length];
+  }
+  return (indent: indent, mark: '$sign${found.group(3)!}', bullet: bullet);
 }
 
-/// The marks on the visible lines, each as [marginMarkClass]: the size and ink of the column's signs. Read from the
-/// syntax tree, as the page's were: a `#` in a block of code, or a `-` the parser did not make a list, is left alone.
+/// How a line with a leading mark hangs (line.dart's marker and words): `hang` back from the words to the rail,
+/// `words` the room before the words past the edge (the indent, and a drawn bullet), and for a bullet item `lead`,
+/// the room between the mark on the rail and the bullet, and `bullet` the bullet's own width.
+typedef MarginGeometry = ({double hang, double words, double lead, double bullet});
+
+/// The geometry of [found] in [view]'s look: the mark at the rail whatever its depth (its indent takes no room in
+/// the column, `marginIndent`), the column fixed, a mark wider than it reaching back further, a quote's `>` hung back
+/// over its bar too, and a bullet set just before the words. Null before the view has a look.
+MarginGeometry? marginGeometry(EditorViewLike view, ({String indent, String mark, String? bullet}) found) {
+  if (view is! EditorView) return null;
+  final look = view.look;
+  if (look == null) return null;
+  final env = look.env;
+  final indent = found.indent.isEmpty ? 0.0 : layoutUnitCeil(view.measureText(<(String, String?)>[(found.indent, null)]));
+  final mark = layoutUnitCeil(view.measureText(<(String, String?)>[(found.mark, marginMarkClass)]));
+  final column = marginColumn(env.body);
+  final wide = mark > column ? mark : column;
+  // A quote's words start past its bar and the room after it (markdown_look.dart `.lineQuote`).
+  final quoted = found.mark.startsWith('>') ? env.t.len('glacier-shape-accent-edge') + env.body * 0.75 : 0.0;
+  final bullet = found.bullet == null ? 0.0 : layoutUnitCeil(view.measureText(<(String, String?)>[('${found.bullet} ', null)]));
+  return (hang: indent + wide + bullet + quoted, words: indent + bullet, lead: found.bullet == null ? 0.0 : wide - mark + indent, bullet: bullet);
+}
+
+/// The bullet before a bullet item's words: the room from the mark to it, then the bullet in the line's own face,
+/// in the marks' ink. Drawn, not written: the note's text is still `- `, on the rail.
+class MarginBullet extends EditorWidget {
+  const MarginBullet({required this.glyph, required this.lead, required this.width});
+
+  final String glyph;
+  final double lead;
+  final double width;
+
+  @override
+  bool eq(MarginBullet other) => other.glyph == glyph && other.lead == lead && other.width == width;
+
+  @override
+  bool get isHidden => true;
+
+  @override
+  bool takesPointer(_) => false;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = EditorRunScope.maybeOf(context)?.line.base.style ?? DefaultTextStyle.of(context).style;
+    return SizedBox(
+      width: lead + width,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [SizedBox(width: lead), Text(glyph, style: base.copyWith(color: context.tokens.color('glacier-text-subtle')))],
+      ),
+    );
+  }
+}
+
+/// The marks on the visible lines, each as [marginMarkClass]: the size and ink of the column's signs; and before a
+/// bullet item's words its [MarginBullet]. Read from the syntax tree, as the page's were: a `#` in a block of code,
+/// or a `-` the parser did not make a list, is left alone.
 DecorationSet _marks(EditorViewLike view) {
   final builder = RangeSetBuilder<Decoration>();
   final state = view.state;
@@ -100,13 +177,16 @@ DecorationSet _marks(EditorViewLike view) {
         if (node.from < last || doc.sliceString(line.from, node.from).trim().isNotEmpty) return null;
         var end = node.to;
         if (end < line.to && (doc.sliceString(end, end + 1) == ' ' || doc.sliceString(end, end + 1) == '\t')) end += 1;
-        // A to-do's box rides with its bullet on the rail, at the marks' size.
-        if (item) {
-          final box = _box.matchAsPrefix(doc.sliceString(end, line.to));
-          if (box != null) end += box.end;
-        }
         if (node.from > line.from) builder.add(line.from, node.from, indent);
         builder.add(node.from, end, mark);
+        if (item) {
+          final found = leadingMark(line.text, heading: false, item: true, quote: false);
+          final bullet = found?.bullet;
+          final geometry = found == null || bullet == null ? null : marginGeometry(view, found);
+          // Before the split, so it is drawn with the mark (line.dart's marker) and the words' wrapped lines hang
+          // under the words, not under the bullet.
+          if (geometry != null) builder.add(end, end, Decoration.widget(widget: MarginBullet(glyph: bullet!, lead: geometry.lead, width: geometry.bullet), side: -1));
+        }
         last = end;
         return null;
       },
@@ -122,7 +202,7 @@ class _Marks extends PluginValue {
 
   @override
   void update(ViewUpdate update) {
-    if (update.docChanged || update.viewportChanged || !identical(syntaxTree(update.startState), syntaxTree(update.state))) decorations = _marks(update.view);
+    if (update.docChanged || update.viewportChanged || update.geometryChanged || !identical(syntaxTree(update.startState), syntaxTree(update.state))) decorations = _marks(update.view);
   }
 }
 
