@@ -8,18 +8,17 @@
 /// each time the bar's padding moved.
 library;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'mac_window.dart';
 
-/// Whether the page is drawn under a desktop's overlaid title bar (`:root[data-titlebar='overlay']`).
+/// Whether the page is drawn under the Mac's title bar (`:root[data-titlebar='overlay']`).
 bool titlebarOverlay(Tokens t) => t.attrs['titlebar'] == 'overlay';
 
-/// The room the three lights take at the row's start (`--app-traffic-lights`), only on a Mac.
-double trafficLightsRoom(Tokens t) => titlebarOverlay(t) && defaultTargetPlatform == TargetPlatform.macOS ? t.len('app-traffic-lights') : 0;
+/// The room the three lights take at the row's start (`--app-traffic-lights`), nothing off the Mac.
+double trafficLightsRoom(Tokens t) => titlebarOverlay(t) ? t.len('app-traffic-lights') : 0;
 
 /// Where the first light begins, from the window's edge: src/platform.rs `INSET.0`.
 const double trafficLightsStart = 16;

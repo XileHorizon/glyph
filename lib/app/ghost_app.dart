@@ -8,6 +8,7 @@ import '../core/preferences.dart';
 import 'iphone_page.dart';
 import '../gallery/kit_gallery.dart';
 import '../settings/settings_css.dart';
+import '../shell/desktop/windows_title_bar.dart';
 import '../shell/root_stamps.dart';
 
 /// Inter's other subsets, which the page reaches by unicode-range and Flutter by falling back (pubspec.yaml).
@@ -137,7 +138,7 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                   // The Mac app draws under its own title bar, the window's buttons set into the page's top row
                   // (`core/platform.ts`: `data-titlebar='overlay'` where `isMacApp`).
                   // Not in a browser on a Mac: the page has no window buttons in its top row (lib/web).
-                  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows)) 'titlebar': 'overlay',
+                  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) 'titlebar': 'overlay',
                   'tabs': 'on',
                   ...prefs.attrs,
                   // The pace, which the page writes as inline durations; a device asking for less motion is left
@@ -157,7 +158,7 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                 // One reading of what lies behind for every glass in the window (the bars and the dock ask for theirs
                 // with `BackdropFilter.grouped`): each used to copy the screen for itself. Compared on the Mac's own
                 // engine with content scrolled under the two bars of the split layout: at most 4 of 255 apart.
-                child: BackdropGroup(child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: IPhonePage(child: GlacierToastProvider(child: child!)))))),
+                child: BackdropGroup(child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: IPhonePage(child: GlacierToastProvider(child: WindowsFrame(child: child!))))))),
               ),
             ),
           ),

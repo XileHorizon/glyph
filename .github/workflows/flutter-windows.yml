@@ -123,7 +123,8 @@ jobs:
           [GhostWindow]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
           Start-Sleep -Seconds 5
           # A fresh local library opens the first-run tour. Skip it to expose the real library and sample notes.
-          [GhostWindow]::SetCursorPos($rect.Right - 45, $rect.Top + 20) | Out-Null
+          # Its Skip is under the 32px Windows title strip, whose right end is the close button.
+          [GhostWindow]::SetCursorPos($rect.Right - 45, $rect.Top + 32 + 20) | Out-Null
           [GhostWindow]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
           [GhostWindow]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
           Start-Sleep -Seconds 10
