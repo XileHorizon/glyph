@@ -4,6 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWasm, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'account/crypto.dart';
@@ -73,9 +74,12 @@ Future<void> main() async {
   // Configure that frame before the first Flutter view is shown, so startup never flashes a second title bar.
   if (!kIsWeb && Platform.isWindows) {
     await windowManager.ensureInitialized();
-    const options = WindowOptions(
-      size: Size(1280, 760),
-      minimumSize: Size(760, 560),
+    // As large as it was made to open, but never larger than the screen's room: on a small screen a centred window
+    // taller than it put its title strip, and the window's buttons, off the top.
+    final room = (await screenRetriever.getPrimaryDisplay()).visibleSize;
+    final options = WindowOptions(
+      size: room == null ? const Size(1280, 760) : Size(room.width < 1280 ? room.width : 1280, room.height < 760 ? room.height : 760),
+      minimumSize: const Size(760, 560),
       center: true,
       title: 'Ghost.md',
       titleBarStyle: TitleBarStyle.hidden,

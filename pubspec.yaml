@@ -40,7 +40,10 @@ dependencies:
   # the browser's own IndexedDB, Worker, fetch and WebSocket, by the Dart team's bindings, which shared_preferences
   # and url_launcher already bring for their own web halves. Nothing of it is compiled into the phone's app.
   web: ^1.1.1
+  # The Windows app's frameless window (lib/shell/desktop/windows_title_bar.dart), and the screen it opens on, so a
+  # window never opens taller than a small laptop's screen with its title strip off the top.
   window_manager: ^0.5.2
+  screen_retriever: ^0.2.0
 
 dev_dependencies:
   flutter_test:
