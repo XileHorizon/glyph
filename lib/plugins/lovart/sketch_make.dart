@@ -11,6 +11,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../../core/images.dart' show PictureStore;
+import '../../core/metrics.dart' show trackPlugin;
 import '../../core/note.dart' show Note;
 import '../../core/note_text.dart' show noteTitle;
 import '../registry.dart' show pluginOn;
@@ -62,6 +63,8 @@ class LovartSketches {
     if (lovart == null) return 0;
     // Marked before Lovart is asked: once per note, whatever happens next.
     markSketchesGiven(id, via: _on);
+    // The anonymous usage stats (lib/core/metrics.dart): sketches begun as a note was left, how many as a bucket.
+    trackPlugin('lovart', 'sketches_started', choice: 'left', count: spots.length);
     final title = noteTitle(note.body);
     final job = lovartPictureJob('lovart-sketches:$id', noteId: id, title: 'Field sketches for $title', person: false);
     for (final spot in spots) {
@@ -120,6 +123,7 @@ Future<void> makeSketches(NoteEditing editing) async {
   final lovart = lovartClient();
   if (lovart == null) return;
   markSketchesGiven(id);
+  trackPlugin('lovart', 'sketches_started', choice: 'asked', count: spots.length);
   final title = noteTitle(editing.body());
   final job = lovartPictureJob('lovart-sketches:$id', noteId: id, title: 'Field sketches for $title');
   // Every stand-in at once, so the note shows where each will go before the first lands.
