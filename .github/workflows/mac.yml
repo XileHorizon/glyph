@@ -1,0 +1,52 @@
+# Ghost.md for the Mac, built on a Mac runner (Kevin, 2026-11-04: "can you just have github actions do it"): the Flutter
+# app as tool/cutover-build-mac.sh makes it, Rust core and all, universal, signed ad hoc. Not a Developer ID build and
+# not notarised: scripts/deploy-flutter-mac.mjs --prepare does those on Matt's Mac, for a release. What it leaves is the
+# app zipped by ditto as an artifact, to try a branch on a Mac without Xcode. No PostHog key here, so the build sends no
+# usage stats.
+name: Mac build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/lovart-enrich]
+
+concurrency:
+  group: mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          # whisper.cpp and llama.cpp take minutes to compile: kept even when the app then fails to build.
+          cache-on-failure: true
+
+      - run: flutter pub get
+
+      - name: Build the app
+        run: sh tool/cutover-build-mac.sh "$(sed -n 's/.*"version": "\([0-9.]*\)".*/\1/p' assets/changelog.json | head -1)"
+
+      - name: Zip it
+        run: ditto -c -k --keepParent build/release-mac/Ghost.md.app "Ghost.md-${GITHUB_SHA::8}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ghost-md-mac
+          path: Ghost.md-*.zip
+          if-no-files-found: error
