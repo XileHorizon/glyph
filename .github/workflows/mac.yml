@@ -40,7 +40,11 @@ jobs:
       - run: flutter pub get
 
       - name: Build the app
-        run: sh tool/cutover-build-mac.sh "$(sed -n 's/.*"version": "\([0-9.]*\)".*/\1/p' assets/changelog.json | head -1)"
+        # The newest version in the changelog, as the app says it.
+        run: |
+          version="$(sed -n 's/.*"version": "\([0-9.]*\)".*/\1/p' assets/changelog.json | head -1)"
+          echo "Ghost.md $version"
+          sh tool/cutover-build-mac.sh "$version"
 
       - name: Zip it
         run: ditto -c -k --keepParent build/release-mac/Ghost.md.app "Ghost.md-${GITHUB_SHA::8}.zip"
