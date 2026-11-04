@@ -53,6 +53,15 @@ const String lovartModelKey = 'glyph-lovart-model';
 /// (figma_refs.dart), on this device.
 const String figmaRefsKey = 'glyph-lovart-figma-refs';
 
+/// Whether notes are given field sketches by themselves as they are left (sketches.dart), on this device.
+const String sketchesKey = 'glyph-lovart-sketches';
+
+/// The notes already given them, by id, so leaving one again asks nothing more.
+const String sketchesDoneKey = 'glyph-lovart-sketches-done';
+
+/// The person's own field sketch prompt (sketches.dart `sketchTemplate`), where they changed the house's.
+const String sketchPromptKey = 'glyph-lovart-sketch-prompt';
+
 const PluginManifest manifest = PluginManifest(
   id: 'lovart',
   name: 'Lovart',
@@ -66,15 +75,16 @@ const PluginManifest manifest = PluginManifest(
     'Inspiration images, on any note: a moodboard of four under ## Inspiration',
     'Inspiration for design meetings, once each is written up, where you switch it on',
     'Header images for notes, painted from what each note is about, made as you leave a note',
+    'Field sketches, where you switch them on: small field-journal drawings beside the paragraphs they belong to',
   ],
   // Off until added: it sends a note's words to Lovart and spends the person's Lovart credits.
   standard: false,
   permissions: [
     PluginPermission(Permission.notes, 'Writes the images it makes into your notes.'),
-    PluginPermission(Permission.network, 'Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there, and the pictures of the Figma frames it links to where you switch that on.'),
+    PluginPermission(Permission.network, 'Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, or a paragraph for a field sketch, goes there, and the pictures of the Figma frames it links to where you switch that on.'),
   ],
   hosts: ['lovart.ai'],
-  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey, bannersOwedKey, bannerRunKey, bannerPromptKey, lovartExtraKey, lovartModelKey, figmaRefsKey],
+  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey, bannersOwedKey, bannerRunKey, bannerPromptKey, lovartExtraKey, lovartModelKey, figmaRefsKey, sketchesKey, sketchesDoneKey, sketchPromptKey],
   secrets: [accessKeySecret, secretKeySecret],
 );
 

@@ -37,6 +37,7 @@ import 'models.dart' show LovartModel, lovartModel, lovartModels, setLovartModel
 import 'lovart_setup.dart';
 import 'figma_refs.dart' show figmaRefsOn, setFigmaRefs;
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
+import 'sketches.dart' show setSketchTemplate, setSketches, sketchStyleDefault, sketchSubjectSlot, sketchTemplate, sketchesOn;
 import '../figma/frames.dart' show figmaFramesOn;
 
 /// What Settings' search finds on the page.
@@ -49,6 +50,8 @@ const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Added to every image', 'prompt extra words every image style always'),
   SettingsFindable('Queue', 'queue waiting making progress pictures header images credits'),
   SettingsFindable('Inspiration for design meetings', 'meetings design moodboard inspiration images automatic'),
+  SettingsFindable('Field sketches', 'field sketch journal naturalist illustration enrich enrichment paragraphs margin specimen watercolor watercolour sepia automatic'),
+  SettingsFindable('Sketch prompt', 'field sketch prompt style words subject edit change reset'),
   SettingsFindable('Use linked Figma frames', 'figma frames designs reference attachments header inspiration moodboard'),
 ];
 
@@ -86,6 +89,8 @@ class _LovartPaneState extends State<LovartPane> {
   late final TextEditingController _prompt = TextEditingController(text: bannerTemplate() ?? bannerStyleDefault);
   late final TextEditingController _extra = TextEditingController(text: lovartExtra() ?? '');
   String? _promptSaid;
+  late final TextEditingController _sketchPrompt = TextEditingController(text: sketchTemplate() ?? sketchStyleDefault);
+  String? _sketchSaid;
   late final VoidCallback _stop;
   bool _checking = false;
   String? _problem;
@@ -118,6 +123,7 @@ class _LovartPaneState extends State<LovartPane> {
     _secret.addListener(_redraw);
     _prompt.addListener(_redraw);
     _extra.addListener(_redraw);
+    _sketchPrompt.addListener(_redraw);
     _stop = onPluginStorage(_redraw);
     unawaited(host.secrets.warm());
   }
@@ -129,6 +135,7 @@ class _LovartPaneState extends State<LovartPane> {
     _secret.dispose();
     _prompt.dispose();
     _extra.dispose();
+    _sketchPrompt.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -146,6 +153,20 @@ class _LovartPaneState extends State<LovartPane> {
     setState(() => _promptSaid = _prompt.text.contains(bannerNoteSlot) || _prompt.text.trim().isEmpty
         ? 'Kept. The next images are asked with these words.'
         : 'Kept. There is no $bannerNoteSlot in it, so the note goes at its end.');
+  }
+
+  /// Whether the sketch prompt's field says something other than what is kept.
+  bool get _sketchChanged => _sketchPrompt.text.trim() != (sketchTemplate() ?? sketchStyleDefault).trim();
+
+  void _keepSketchPrompt() {
+    setSketchTemplate(_sketchPrompt.text);
+    setState(() => _sketchSaid = 'Kept. The next sketches are asked with these words.');
+  }
+
+  void _resetSketchPrompt() {
+    setSketchTemplate(null);
+    _sketchPrompt.text = sketchStyleDefault;
+    setState(() => _sketchSaid = 'Back to Ghost.md’s own words.');
   }
 
   void _choosePreset(BannerPreset preset) {
@@ -403,6 +424,40 @@ class _LovartPaneState extends State<LovartPane> {
             ),
           ],
         ),
+        // Field sketches (sketches.dart; Kevin, 2026-11-04): off until switched on, since a note can take several.
+        PaneSection(
+          title: 'Field sketches',
+          description: const Text('Small field-journal drawings beside the paragraphs they belong to: Lovart reads each one, picks the one thing it is about and draws it in sepia ink and watercolour, so the note reads like an explorer’s sketchbook.'),
+          children: [
+            SettingRow(
+              key: const ValueKey('lovart-sketches'),
+              label: 'Field sketches',
+              hint: const Text('When you leave a note of a few paragraphs, Lovart sketches up to four of its longest, one a section, spaced apart and never beside a picture already there. Once per note, with your credits; not for tickets, meetings, mail or short notes. Add them any time from Add field sketches on the note’s menu.'),
+              control: GlacierSwitch(ariaLabel: 'Field sketches', checked: sketchesOn(), onCheckedChange: (on) => setState(() => setSketches(on))),
+            ),
+            SettingRow(
+              key: const ValueKey('lovart-sketch-prompt'),
+              label: 'Sketch prompt',
+              hint: const Text('$sketchSubjectSlot is the thing Lovart chooses to draw; the paragraph goes after these words.'),
+              layout: SettingRowLayout.stacked,
+              control: _PromptField(key: const ValueKey('lovart-sketch-prompt-field'), label: 'Sketch prompt', controller: _sketchPrompt, placeholder: sketchStyleDefault, lines: 8),
+            ),
+            SettingRow(
+              key: const ValueKey('lovart-sketch-prompt-actions'),
+              label: _sketchSaid ?? (_sketchChanged ? 'Not kept yet' : (sketchTemplate() == null ? 'Ghost.md’s own words' : 'Your own words')),
+              layout: SettingRowLayout.stacked,
+              control: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: context.tokens.space(2),
+                runSpacing: context.tokens.space(2),
+                children: [
+                  RowAction(onPress: _resetSketchPrompt, disabled: sketchTemplate() == null && _sketchPrompt.text.trim() == sketchStyleDefault.trim(), child: const Text('Reset')),
+                  RowAction(onPress: _keepSketchPrompt, disabled: !_sketchChanged, child: const Text('Keep')),
+                ],
+              ),
+            ),
+          ],
+        ),
         // What is being made now and what waits, on this device (lovart_queue.dart).
         const LovartQueueSection(),
         PaneSection(
@@ -430,7 +485,7 @@ class _LovartPaneState extends State<LovartPane> {
             ),
           ],
         ),
-        const SettingsFootnote(child: Text('Only the words of a {image: …}, the note you ask inspiration for, or a note’s title, sections and opening for its header image go to Lovart, with your prompt’s words, and the pictures of a note’s Figma frames where Use linked Figma frames is on. Lovart’s agent may search the web for what they name. Write {image: a prompt} anywhere in a note to make a picture there.')),
+        const SettingsFootnote(child: Text('Only the words of a {image: …}, the note you ask inspiration for, a note’s title, sections and opening for its header image, or a paragraph for its field sketch go to Lovart, with your prompt’s words, and the pictures of a note’s Figma frames where Use linked Figma frames is on. Lovart’s agent may search the web for what they name. Write {image: a prompt} anywhere in a note to make a picture there.')),
       ],
     );
   }

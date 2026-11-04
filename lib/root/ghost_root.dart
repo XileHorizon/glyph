@@ -234,7 +234,7 @@ import '../activity/activity_surfaces.dart' show startActivitySurfaces;
 import '../core/background_jobs.dart' show ChannelBackgroundJobs, JobFix, JobFixKind, JobKind, JobTally, NoBackgroundJobs, activity, activityRoutes;
 import '../note/note_banner.dart' show BannerLook, bannerLook;
 import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
-import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
+import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartSketches, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/git_backup/git_backup.dart' show GitBackupService, gitBackupSettings;
 import '../plugins/cleanup/cleanup.dart' show CleanupService, cleanupHost, cleanupRunsFileFor;
 import '../plugins/github/pull_links.dart' show PullRecord, PullState, mergeMove, mergeRunId, pullLinks;
@@ -551,6 +551,10 @@ class _GhostRootState extends State<GhostRoot> {
   // costs what is being typed (`_changeNote`).
   late final LovartBanners _banners = LovartBanners(getNote: _library.get, update: _library.update, write: (id, change) => _changeNote(id, change, userEvent: 'lovart.banner', confirm: true), warn: debugPrint);
   String? _bannerOpen;
+
+  /// And its field sketches, where their switch is on (lib/plugins/lovart/sketch_make.dart; Kevin, 2026-11-04), written
+  /// the same way.
+  late final LovartSketches _sketches = LovartSketches(getNote: _library.get, write: (id, change) => _changeNote(id, change, userEvent: 'lovart.sketch', confirm: true), warn: debugPrint);
 
   /// Settings › Lovart's header images for the recent notes, as the app's own job (lib/plugins/lovart/banner_run.dart;
   /// Matt, 2026-10-26: "Make the header generation async and a background task that runs while the app is generating

@@ -28,13 +28,13 @@ class LovartHold {
 
   final BackgroundJobs background;
   final bool Function() _runGoing;
-  late final Listenable _heard = Listenable.merge([lovartBannerMaking, lovartMaking, lovartInspiring, lovartBannerRun]);
+  late final Listenable _heard = Listenable.merge([lovartBannerMaking, lovartMaking, lovartInspiring, lovartSketching, lovartBannerRun]);
   bool _holding = false;
   int _said = -1;
   bool _started = false;
 
   /// How many pictures are being made now, outside the run.
-  static int making() => lovartBannerMaking.value.length + lovartMaking.value.length + lovartInspiring.value.length;
+  static int making() => lovartBannerMaking.value.length + lovartMaking.value.length + lovartInspiring.value.length + lovartSketchingCount();
 
   /// Starts hearing.
   void start() {

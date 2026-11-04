@@ -45,6 +45,7 @@ import '../editor.dart';
 import '../view/line_facts.dart';
 import '../looks/look.dart';
 import 'lovart_badge.dart';
+import '../../plugins/lovart/keep.dart' show isSketch;
 import '../view/editor_view.dart';
 
 /// Where the editor's pictures are drawn from, and kept: the first one given.
@@ -283,7 +284,7 @@ Size fitPicture(Size natural, {required double maxWidth, double maxHeight = doub
 
 /// The picture under its line.
 class ImageWidget extends EditorWidget {
-  const ImageWidget(this.name, this.caption, this.generation);
+  const ImageWidget(this.name, this.caption, this.generation, {this.sketchEnd = false});
 
   final String name;
   final String caption;
@@ -291,8 +292,12 @@ class ImageWidget extends EditorWidget {
   /// Bumped when a picture becomes loadable, so the widget is rebuilt.
   final int generation;
 
+  /// For a field sketch (lib/plugins/lovart/sketches.dart), whether it sits at the line's end: the note's sketches
+  /// take turns, the first at the end, the next at the start.
+  final bool sketchEnd;
+
   @override
-  bool eq(ImageWidget other) => other.name == name && other.caption == caption && other.generation == generation;
+  bool eq(ImageWidget other) => other.name == name && other.caption == caption && other.generation == generation && other.sketchEnd == sketchEnd;
 
   @override
   bool takesPointer(_) => false;
@@ -300,6 +305,7 @@ class ImageWidget extends EditorWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    if (isSketch(name)) return _sketch(context);
     final store = pictureStoreOf(context);
     final radius = t.radius('md');
     final paper = t.color('app-paper-2');
@@ -335,7 +341,42 @@ class ImageWidget extends EditorWidget {
       ),
     );
   }
+
+  /// A field sketch: a specimen on the page, not a figure. No ground and no corners, since its paper is clear; about two
+  /// fifths of the column wide and no taller than a third of the screen, at one side, so it sits beside the words it
+  /// belongs to as a drawing in a naturalist's journal does.
+  Widget _sketch(BuildContext context) {
+    final t = context.tokens;
+    final store = pictureStoreOf(context);
+    final waiting = store?.pictureOf(name) == null;
+    return Padding(
+      padding: EdgeInsets.only(top: t.space(1), bottom: t.space(2)).add(EdgeInsets.symmetric(horizontal: gutterOf(context))),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final width = (box.maxWidth * sketchShare).clamp(120.0, sketchMostWidth).toDouble();
+          return Align(
+            key: ValueKey<String>(waiting ? 'sketch-waiting' : 'sketch'),
+            alignment: sketchEnd ? AlignmentDirectional.topEnd : AlignmentDirectional.topStart,
+            child: SizedBox(
+              width: width,
+              child: KeptPicture(
+                name: name,
+                store: store,
+                label: caption,
+                maxHeight: MediaQuery.sizeOf(context).height * 0.34,
+                waiting: waiting ? SizedBox(width: width, height: width * 1.25) : null,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
+
+/// How much of the column a field sketch takes, and the most it is wide.
+const double sketchShare = 0.42;
+const double sketchMostWidth = 300;
 
 /// A picture became loadable (the store said so): rebuild the widgets.
 final StateEffectType<Null> refreshImages = StateEffect.define<Null>();
@@ -346,8 +387,11 @@ int _generation = 0;
 /// own keeping (`pictureFacts`): a keystroke reads the lines it changed for a picture, not the note.
 DecorationSet _decorate(EditorState state) {
   final builder = RangeSetBuilder<Decoration>();
+  var sketches = 0;
   for (final line in pictureFacts.of(state.doc)) {
-    builder.add(line.to, line.to, Decoration.widget(widget: ImageWidget(line.fact.name, line.fact.caption, _generation), block: true, side: 1));
+    final sketch = isSketch(line.fact.name);
+    builder.add(line.to, line.to, Decoration.widget(widget: ImageWidget(line.fact.name, line.fact.caption, _generation, sketchEnd: sketch && sketches.isEven), block: true, side: 1));
+    if (sketch) sketches += 1;
   }
   return builder.finish();
 }

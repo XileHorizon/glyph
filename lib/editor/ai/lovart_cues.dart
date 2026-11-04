@@ -24,8 +24,9 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../plugins/lovart/cues.dart' show ImageCue, imageCues;
 import '../../plugins/lovart/inspiration.dart' show inspirationCount, inspirationInsert;
+import '../../plugins/lovart/keep.dart' show sketchPrefix;
 import '../../plugins/lovart/lovart_mark.dart';
-import '../media/images.dart' show gutterOf;
+import '../media/images.dart' show gutterOf, sketchMostWidth, sketchShare;
 import '../media/lovart_pending.dart';
 import '../editor.dart';
 import '../looks/look.dart';
@@ -36,7 +37,7 @@ import '../view/syntax_tree.dart';
 
 /// What the note's screen gives the cues.
 class LovartCueHooks {
-  const LovartCueHooks({required this.on, required this.press, required this.making, this.inspiring, this.changes});
+  const LovartCueHooks({required this.on, required this.press, required this.making, this.inspiring, this.sketching, this.changes});
 
   /// Whether cues are marked: the plugin on. Read at each drawing.
   final bool Function() on;
@@ -51,7 +52,11 @@ class LovartCueHooks {
   /// (Matt, 2026-11-02: "bring back the blurry image with the lovart logo with the spinner when generating images").
   final bool Function()? inspiring;
 
-  /// Told when [on], [making] or [inspiring] may answer otherwise: the cues are drawn again.
+  /// The paragraphs of the note waiting for a field sketch now, by their last line's text: a stand-in waits under each,
+  /// at the side the sketch will sit (lib/plugins/lovart/sketch_make.dart).
+  final Set<String> Function()? sketching;
+
+  /// Told when [on], [making], [inspiring] or [sketching] may answer otherwise: the cues are drawn again.
   final Listenable? changes;
 }
 
@@ -297,6 +302,19 @@ DecorationSet _pendingOf(EditorState state) {
     final at = inspirationInsert(doc.toString(), const []).line.clamp(1, doc.lines);
     found.add(Decoration.widget(widget: const LovartMoodboardPendingWidget(), block: true, side: 2).range(doc.line(at).to));
   }
+  // Field sketches being drawn: a small stand-in under each paragraph waiting for one, taking turns with the sketches
+  // already there for its side, as they will (images.dart `ImageWidget.sketchEnd`).
+  final sketching = hooks.sketching?.call() ?? const <String>{};
+  if (sketching.isNotEmpty) {
+    var sketches = 0;
+    for (var n = 1; n <= doc.lines; n += 1) {
+      final text = doc.line(n).text;
+      if (text.contains('(image/$sketchPrefix')) sketches += 1;
+      if (!sketching.contains(text)) continue;
+      found.add(Decoration.widget(widget: LovartSketchPendingWidget(text, end: sketches.isEven), block: true, side: 3).range(doc.line(n).to));
+      sketches += 1;
+    }
+  }
   return found.isEmpty ? Decoration.none : Decoration.set(found, true);
 }
 
@@ -327,6 +345,38 @@ class LovartPendingWidget extends EditorWidget {
     return Padding(
       padding: EdgeInsets.only(top: t.space(2), bottom: t.space(3)).add(EdgeInsets.symmetric(horizontal: gutterOf(context))),
       child: LovartPending(prompt: prompt, maxHeight: MediaQuery.sizeOf(context).height * 0.4),
+    );
+  }
+}
+
+/// A field sketch's stand-in, at the sketch's side and size (images.dart `ImageWidget`), while Lovart draws it.
+class LovartSketchPendingWidget extends EditorWidget {
+  const LovartSketchPendingWidget(this.lastText, {required this.end});
+
+  final String lastText;
+  final bool end;
+
+  @override
+  bool eq(LovartSketchPendingWidget other) => other.lastText == lastText && other.end == end;
+
+  @override
+  bool takesPointer(_) => false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      key: const ValueKey<String>('lovart-sketch-pending'),
+      padding: EdgeInsets.only(top: t.space(1), bottom: t.space(2)).add(EdgeInsets.symmetric(horizontal: gutterOf(context))),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final width = (box.maxWidth * sketchShare).clamp(120.0, sketchMostWidth).toDouble();
+          return Align(
+            alignment: end ? AlignmentDirectional.topEnd : AlignmentDirectional.topStart,
+            child: SizedBox(width: width, child: LovartPending(prompt: lastText, height: width * 1.25)),
+          );
+        },
+      ),
     );
   }
 }

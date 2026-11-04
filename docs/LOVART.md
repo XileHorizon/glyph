@@ -187,6 +187,29 @@ review and still finish: the result's `failures` (`LovartClient.failuresOf`, kep
 ("Lovart left out a Figma frame: …") for the cog's actions, and logged for the jobs nobody asked for. Off by default
 because it sends the person's designs, which may be a client's, where until now only words went.
 
+**Field sketches** (switch "Field sketches" on the plugin's page, **off** by default; Kevin, 2026-11-04: "an optional
+toggle for image enrichment where when it is adding images it parses the text to find natural spots to add in generated
+images that relate to the text section in pretty spots so it looks alive and sorta magical";
+lib/plugins/lovart/sketches.dart, sketch_make.dart). Small drawings of one object each, in the manner of a 19th-century
+naturalist's field journal (sepia ink, watercolour, a transparent ground, 4:5: Kevin's prompt, `sketchStyleDefault`,
+editable as **Sketch prompt**, with `{subject}` or `[SUBJECT]` where the thing drawn is named), beside the paragraphs
+they belong to. **Where:** `sketchSpots` reads the note's blocks, leaving out front matter, code, tables, maths, HTML,
+tasks, `{image: …}` lines and the Inspiration, Transcript, Links, References and Sources sections; a paragraph of 35
+words or more is a place for one, the longest in each section first, 140 words or more from any picture and not just
+before one, one for every 220 words of the note and at most four, sketches already there counting. **What:** the
+paragraph's words go to Lovart with the prompt and how to choose the subject (the one concrete thing it names or most
+evokes, looked up where it is a real one), so Lovart's agent picks it and no other model is asked. **Made:** one at a
+time, in order, each written in as it lands, as `![Field sketch for <section>](image/lovart-sketch-….png)` on its own
+line after the paragraph; a stand-in waits under every paragraph waiting for one (lib/editor/ai/lovart_cues.dart,
+`lovartSketching`). As a note is left, for a note a banner could be made for of 120 words or more, not a notebook's
+cover, once per note (`sketchesDoneKey`; a note with no place yet is not marked, so one that grows is looked at again);
+and on the note's cog as **Add field sketches**, which adds wherever there is room. **Drawn:** a picture named
+`lovart-sketch-` is drawn small and unframed, two fifths of the column and at most 300 px wide, no taller than a third
+of the screen, taking turns at the end and the start of the line (lib/editor/media/images.dart `ImageWidget`).
+**Paper:** not every model Lovart picks can give a true alpha channel; a sketch that comes back with opaque pale,
+colourless ground at its edges (white paper, a painted grey checkerboard) has that ground, reached from the edges,
+made clear and its fringe faded (sketch_clear.dart, `dart:ui` only), so the drawing sits on the page in light and dark.
+
 **The badge.** A picture whose name begins `lovart-` carries Lovart's mark at its bottom right (20 px on a dark rounded
 ground, inset 8 px, "Made with Lovart" to a screen reader) wherever it is drawn: the editor's figures, an embedded
 note, a canvas picture card, on every device, plugin on or not (lib/editor/media/lovart_badge.dart).

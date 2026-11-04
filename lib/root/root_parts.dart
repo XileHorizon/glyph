@@ -229,7 +229,10 @@ extension _RootParts on _GhostRootState {
         // The note on the screen is not gisted while it is open: its words are still moving (lib/format/gist.dart).
         holdGistsFor(screen is ScreenNote ? <String>[screen.note.id] : const <String>[]);
         final open = screen is ScreenNote ? screen.note.id : null;
-        if (_bannerOpen != null && _bannerOpen != open) unawaited(_banners.noteLeft(_bannerOpen!));
+        if (_bannerOpen != null && _bannerOpen != open) {
+          unawaited(_banners.noteLeft(_bannerOpen!));
+          unawaited(_sketches.noteLeft(_bannerOpen!));
+        }
         _bannerOpen = open;
         _extras?.screen(screen);
         _tick.tell();

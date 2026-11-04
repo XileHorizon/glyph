@@ -210,7 +210,7 @@ import '../note/note_place.dart' as reading show caretPlace, placeOf;
 import '../note/note_screen.dart';
 import '../plugins/keymaps/keymaps.dart' show KeymapBadge, KeymapHooks, keyboardMode, keyboardModes, vimJk, vimStartsNormal;
 import '../plugins/link_marks.dart';
-import '../plugins/lovart/lovart.dart' show bannerEdit, bannerUnready, lovartBannerMaking, lovartCuesOn, lovartInspiring, lovartIsMaking, lovartMaking, makeBanner, makeCue, removeBanner;
+import '../plugins/lovart/lovart.dart' show bannerEdit, bannerUnready, lovartBannerMaking, lovartCuesOn, lovartInspiring, lovartIsMaking, lovartMaking, lovartSketching, makeBanner, makeCue, removeBanner;
 import '../plugins/more/tool_off.dart' show MoreToolOff;
 import '../plugins/note_decay/decay.dart' show noteDecay;
 import '../plugins/out_of_date/out_of_date.dart' show OutOfDateHooks, outOfDateMarks;
@@ -1070,7 +1070,8 @@ class NoteDeskState extends State<NoteDesk> {
         press: (cue) => unawaited(makeCue(_editing, cue)),
         making: (cueText) => lovartIsMaking(widget.noteId, cueText),
         inspiring: () => lovartInspiring.value.contains(widget.noteId),
-        changes: Listenable.merge(<Listenable>[lovartMaking, lovartInspiring, plugins]),
+        sketching: () => lovartSketching.value[widget.noteId] ?? const <String>{},
+        changes: Listenable.merge(<Listenable>[lovartMaking, lovartInspiring, lovartSketching, plugins]),
       )),
     // A line that may be out of date, quietly marked with its reasons while the Contradiction finder or Note decay
     // alerts is on: one mark and one sheet for both (lib/plugins/out_of_date/, docs/NOTE_DECAY.md §5), drawn from what

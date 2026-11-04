@@ -32,6 +32,23 @@ void markInspiring(String noteId, bool on) {
   if (on ? next.add(noteId) : next.remove(noteId)) lovartInspiring.value = Set.unmodifiable(next);
 }
 
+/// The field sketches being drawn now (sketch_make.dart), by note: the last line of each paragraph waiting for one, so
+/// the editor draws a stand-in under it until the sketch lands (lib/editor/ai/lovart_cues.dart).
+final ValueNotifier<Map<String, Set<String>>> lovartSketching = ValueNotifier<Map<String, Set<String>>>(const {});
+
+/// Marks the paragraph ending [lastText] of [noteId] being sketched now, or done.
+void markSketching(String noteId, String lastText, bool on) {
+  final now = lovartSketching.value[noteId] ?? const <String>{};
+  if (now.contains(lastText) == on) return;
+  final next = on ? {...now, lastText} : {...now}..remove(lastText);
+  final all = {...lovartSketching.value};
+  next.isEmpty ? all.remove(noteId) : all[noteId] = Set.unmodifiable(next);
+  lovartSketching.value = Map.unmodifiable(all);
+}
+
+/// How many sketches are being drawn now, every note's.
+int lovartSketchingCount() => lovartSketching.value.values.fold(0, (sum, lines) => sum + lines.length);
+
 /// A picture Lovart makes for the note [noteId] outside the run (a cue, a moodboard, a header from the note's cog),
 /// as a job on the app's record of running work (lib/core/background_jobs.dart; docs/ACTIVITY.md): in the ring and the
 /// tray while Lovart draws, and a chip as it lands while the note is not on screen, wearing Lovart's mark. [person]

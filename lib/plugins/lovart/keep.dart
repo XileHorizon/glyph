@@ -22,16 +22,24 @@ const String lovartPicturePrefix = 'lovart-';
 /// Whether the picture [name] is one Lovart made.
 bool madeByLovart(String name) => name.startsWith(lovartPicturePrefix);
 
+/// What a field sketch's picture is named with first (sketches.dart): still [lovartPicturePrefix], so it wears the badge,
+/// and the editor draws it small and unframed beside the words (lib/editor/media/images.dart).
+const String sketchPrefix = 'lovart-sketch-';
+
+/// Whether the picture [name] is a field sketch.
+bool isSketch(String name) => name.startsWith(sketchPrefix);
+
 /// Keeps [images] and answers their names, `lovart-<uuid>.png` and the like, by each one's own bytes: 43 characters
-/// before the ending, well inside the 64 the service's file ids take (lib/sync/notes.dart `fileId`).
-Future<List<String>> keepLovartImages(List<Uint8List> images, {PictureStore? into}) async {
+/// before the ending, well inside the 64 the service's file ids take (lib/sync/notes.dart `fileId`). [prefix], where
+/// given, names them otherwise: still beginning [lovartPicturePrefix] (a field sketch's `lovart-sketch-`).
+Future<List<String>> keepLovartImages(List<Uint8List> images, {PictureStore? into, String prefix = lovartPicturePrefix}) async {
   final store = into ?? lovartPictureStore;
   if (store == null) throw const LovartFailure(cannotKeepLovart);
   final names = <String>[];
   for (final bytes in images) {
     final ext = pictureExtension(bytes);
     if (ext == null) continue;
-    final name = '$lovartPicturePrefix${randomId('img')}.$ext';
+    final name = '$prefix${randomId('img')}.$ext';
     await store.keep(name, bytes);
     names.add(name);
   }
