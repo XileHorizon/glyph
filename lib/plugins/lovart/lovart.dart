@@ -15,7 +15,7 @@
 /// - **Header images**: a banner across the top of a note in the ghost's dotwork, made as a note is left where its
 ///   switch is on (on by default), and on the note's cog (banners.dart); and for the hundred most recent notes at
 ///   once, from its page, as a job of the app's own that goes on in the background (banner_run.dart).
-/// - **Field sketches** (sketches.dart, sketch_make.dart; Kevin, 2026-11-04): small field-journal drawings beside the
+/// - **Field sketches** (sketches.dart, sketch_make.dart; Kevin, 2026-11-04): small drawings in the header style beside the
 ///   paragraphs they belong to, made as a note is left where their switch is on (off by default), and on the note's cog.
 /// - Its page in Settings: the two keys, checked before they are kept, and the switch (lovart_pane.dart).
 /// - **Its setup** (lovart_setup.dart; Matt, 2026-10-28: "For each of the plugins add a small onboarding flow start
@@ -272,7 +272,7 @@ final GlyphPlugin lovartPlugin = GlyphPlugin(
         if (unready != null) return unready;
         final count = sketchSpots(body).length;
         if (count == 0) return 'No paragraph here is long enough for a sketch, or each already has a picture beside it.';
-        return '${count == 1 ? 'A field-journal sketch' : '$count field-journal sketches'} beside the paragraphs ${count == 1 ? 'it belongs' : 'they belong'} to, made by Lovart with your credits: ${aboutCredits(count)}.';
+        return '${count == 1 ? 'A sketch' : '$count sketches'} in your header image style beside the paragraphs ${count == 1 ? 'it belongs' : 'they belong'} to, made by Lovart with your credits: ${aboutCredits(count)}.';
       },
       enabled: (noteId, body) => lovartUnready() == null && !lovartSketching.value.containsKey(noteId) && sketchSpots(body).isNotEmpty,
       run: (editing, [choice]) => makeSketches(editing),

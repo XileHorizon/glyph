@@ -190,10 +190,12 @@ because it sends the person's designs, which may be a client's, where until now 
 **Field sketches** (switch "Field sketches" on the plugin's page, **off** by default; Kevin, 2026-11-04: "an optional
 toggle for image enrichment where when it is adding images it parses the text to find natural spots to add in generated
 images that relate to the text section in pretty spots so it looks alive and sorta magical";
-lib/plugins/lovart/sketches.dart, sketch_make.dart). Small drawings of one object each, in the manner of a 19th-century
-naturalist's field journal (sepia ink, watercolour, a transparent ground, 4:5: Kevin's prompt, `sketchStyleDefault`,
-editable as **Sketch prompt**, with `{subject}` or `[SUBJECT]` where the thing drawn is named), beside the paragraphs
-they belong to. **Where:** `sketchSpots` reads the note's blocks, leaving out front matter, code, tables, maths, HTML,
+lib/plugins/lovart/sketches.dart, sketch_make.dart). Small drawings of one object each, isolated on a transparent
+ground, 4:5 (`sketchFrame`, from Kevin's prompt), beside the paragraphs they belong to, drawn in the header image **Style** chosen at the head of the
+plugin's page (Kevin, the same day: "can we actually have the style of the thing follow the style for banners they
+select?"): each `BannerPreset` has a `sketch`, its style for one object without the banner's frame, and `sketchStyleNow`
+reads the chosen one; with a header prompt of the person's own, the Field journal's. No sketch prompt of its own, so
+banner and sketches always match. **Where:** `sketchSpots` reads the note's blocks, leaving out front matter, code, tables, maths, HTML,
 tasks, `{image: …}` lines and the Inspiration, Transcript, Links, References and Sources sections; a paragraph of 35
 words or more is a place for one, the longest in each section first, 140 words or more from any picture and not just
 before one, one for every 220 words of the note and at most four, sketches already there counting. **What:** the

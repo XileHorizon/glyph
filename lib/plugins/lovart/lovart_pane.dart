@@ -37,7 +37,7 @@ import 'models.dart' show LovartModel, lovartModel, lovartModels, setLovartModel
 import 'lovart_setup.dart';
 import 'figma_refs.dart' show figmaRefsOn, setFigmaRefs;
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
-import 'sketches.dart' show setSketchTemplate, setSketches, sketchStyleDefault, sketchSubjectSlot, sketchTemplate, sketchesOn;
+import 'sketches.dart' show setSketches, sketchesOn;
 import '../figma/frames.dart' show figmaFramesOn;
 
 /// What Settings' search finds on the page.
@@ -50,9 +50,8 @@ const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Added to every image', 'prompt extra words every image style always'),
   SettingsFindable('Queue', 'queue waiting making progress pictures header images credits'),
   SettingsFindable('Inspiration for design meetings', 'meetings design moodboard inspiration images automatic'),
-  SettingsFindable('Field sketches', 'field sketch journal naturalist illustration enrich enrichment paragraphs margin specimen watercolor watercolour sepia automatic'),
-  SettingsFindable('Sketch prompt', 'field sketch prompt style words subject edit change reset'),
-  SettingsFindable('Use linked Figma frames', 'figma frames designs reference attachments header inspiration moodboard'),
+  SettingsFindable('Field sketches', 'field sketch drawing illustration enrich enrichment paragraphs margin specimen style automatic'),
+    SettingsFindable('Use linked Figma frames', 'figma frames designs reference attachments header inspiration moodboard'),
 ];
 
 /// What the run over the recent notes says: what it does, before one; how far it is while it runs, here or on
@@ -89,8 +88,6 @@ class _LovartPaneState extends State<LovartPane> {
   late final TextEditingController _prompt = TextEditingController(text: bannerTemplate() ?? bannerStyleDefault);
   late final TextEditingController _extra = TextEditingController(text: lovartExtra() ?? '');
   String? _promptSaid;
-  late final TextEditingController _sketchPrompt = TextEditingController(text: sketchTemplate() ?? sketchStyleDefault);
-  String? _sketchSaid;
   late final VoidCallback _stop;
   bool _checking = false;
   String? _problem;
@@ -123,7 +120,6 @@ class _LovartPaneState extends State<LovartPane> {
     _secret.addListener(_redraw);
     _prompt.addListener(_redraw);
     _extra.addListener(_redraw);
-    _sketchPrompt.addListener(_redraw);
     _stop = onPluginStorage(_redraw);
     unawaited(host.secrets.warm());
   }
@@ -135,7 +131,6 @@ class _LovartPaneState extends State<LovartPane> {
     _secret.dispose();
     _prompt.dispose();
     _extra.dispose();
-    _sketchPrompt.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -153,20 +148,6 @@ class _LovartPaneState extends State<LovartPane> {
     setState(() => _promptSaid = _prompt.text.contains(bannerNoteSlot) || _prompt.text.trim().isEmpty
         ? 'Kept. The next images are asked with these words.'
         : 'Kept. There is no $bannerNoteSlot in it, so the note goes at its end.');
-  }
-
-  /// Whether the sketch prompt's field says something other than what is kept.
-  bool get _sketchChanged => _sketchPrompt.text.trim() != (sketchTemplate() ?? sketchStyleDefault).trim();
-
-  void _keepSketchPrompt() {
-    setSketchTemplate(_sketchPrompt.text);
-    setState(() => _sketchSaid = 'Kept. The next sketches are asked with these words.');
-  }
-
-  void _resetSketchPrompt() {
-    setSketchTemplate(null);
-    _sketchPrompt.text = sketchStyleDefault;
-    setState(() => _sketchSaid = 'Back to Ghost.md’s own words.');
   }
 
   void _choosePreset(BannerPreset preset) {
@@ -303,7 +284,7 @@ class _LovartPaneState extends State<LovartPane> {
         if (_said != null) SettingsCallout(child: Text(_said!)),
         PaneSection(
           title: 'Style',
-          description: const Text('How header images are drawn. Choosing one puts its words in the header image prompt below, where you can still change them.'),
+          description: const Text('How header images and field sketches are drawn. Choosing one puts its words in the header image prompt below, where you can still change them.'),
           children: [_StylePicker(chosen: bannerPresetNow(), onChoose: _choosePreset)],
         ),
         _modelSection(),
@@ -427,34 +408,13 @@ class _LovartPaneState extends State<LovartPane> {
         // Field sketches (sketches.dart; Kevin, 2026-11-04): off until switched on, since a note can take several.
         PaneSection(
           title: 'Field sketches',
-          description: const Text('Small field-journal drawings beside the paragraphs they belong to: Lovart reads each one, picks the one thing it is about and draws it in sepia ink and watercolour, so the note reads like an explorer’s sketchbook.'),
+          description: const Text('Small drawings beside the paragraphs they belong to: Lovart reads each one, picks the one thing it is about and draws it on its own, in the style chosen above, so a note’s sketches match its header image. With a header prompt of your own, they are drawn in the Field journal style.'),
           children: [
             SettingRow(
               key: const ValueKey('lovart-sketches'),
               label: 'Field sketches',
               hint: const Text('When you leave a note of a few paragraphs, Lovart sketches up to four of its longest, one a section, spaced apart and never beside a picture already there. Once per note, with your credits; not for tickets, meetings, mail or short notes. Add them any time from Add field sketches on the note’s menu.'),
               control: GlacierSwitch(ariaLabel: 'Field sketches', checked: sketchesOn(), onCheckedChange: (on) => setState(() => setSketches(on))),
-            ),
-            SettingRow(
-              key: const ValueKey('lovart-sketch-prompt'),
-              label: 'Sketch prompt',
-              hint: const Text('$sketchSubjectSlot is the thing Lovart chooses to draw; the paragraph goes after these words.'),
-              layout: SettingRowLayout.stacked,
-              control: _PromptField(key: const ValueKey('lovart-sketch-prompt-field'), label: 'Sketch prompt', controller: _sketchPrompt, placeholder: sketchStyleDefault, lines: 8),
-            ),
-            SettingRow(
-              key: const ValueKey('lovart-sketch-prompt-actions'),
-              label: _sketchSaid ?? (_sketchChanged ? 'Not kept yet' : (sketchTemplate() == null ? 'Ghost.md’s own words' : 'Your own words')),
-              layout: SettingRowLayout.stacked,
-              control: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: context.tokens.space(2),
-                runSpacing: context.tokens.space(2),
-                children: [
-                  RowAction(onPress: _resetSketchPrompt, disabled: sketchTemplate() == null && _sketchPrompt.text.trim() == sketchStyleDefault.trim(), child: const Text('Reset')),
-                  RowAction(onPress: _keepSketchPrompt, disabled: !_sketchChanged, child: const Text('Keep')),
-                ],
-              ),
             ),
           ],
         ),

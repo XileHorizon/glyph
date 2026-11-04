@@ -4,9 +4,9 @@
 /// paragraphs get one ([sketchSpots]), what Lovart is asked for each ([sketchPrompt]), where the picture goes
 /// ([withSketch]), and the switch and the prompt the plugin's page keeps. Making them is sketch_make.dart's.
 ///
-/// - **The look.** One object, drawn as a 19th-century naturalist's field-journal specimen in sepia ink and watercolour
-///   on a transparent ground, 4:5 ([sketchStyleDefault], Kevin's own prompt). Lovart's agent reads the passage and
-///   chooses the one thing to draw, so no other model is asked first.
+/// - **The look.** One object on a transparent ground, 4:5 ([sketchFrame], from Kevin's own prompt), drawn in the header
+///   image style chosen on the plugin's page ([sketchStyleNow]), so a note's banner and its sketches match. Lovart's
+///   agent reads the passage and chooses the one thing to draw, so no other model is asked first.
 /// - **The spots.** Paragraphs of prose (and lists of words, not of tasks) of [sketchMinWords] or more, at most one
 ///   to a section and [sketchGapWords] words from any picture, the longest first, up to one for every
 ///   [sketchWordsEach] words of the note and never more than [sketchMost]. Not in code, tables, maths, HTML, front
@@ -21,7 +21,7 @@ import '../../core/images.dart' show imageMarkdown;
 import '../../core/note.dart' show Note;
 import '../../core/note_facts.dart' show NoteFacts;
 import '../types.dart' show PluginHost;
-import 'banners.dart' show wantsBanner, withLovartExtra;
+import 'banners.dart' show bannerPresetNow, bannerPresets, wantsBanner, withLovartExtra;
 import 'cues.dart' show imageCuePattern, pictureCaption;
 import 'keep.dart' show isSketch;
 import 'manifest.dart';
@@ -44,75 +44,36 @@ const int sketchMinNoteWords = 120;
 /// How much of a passage goes to Lovart.
 const int sketchPassageChars = 700;
 
-/// Where the subject goes in the prompt: the house's slot, and the one Kevin's draft was written with.
-const String sketchSubjectSlot = '{subject}';
-const String _draftSlot = '[SUBJECT]';
+/// The style a sketch is drawn in when the header prompt is a person's own and names no style of the list: the
+/// field journal's, the style Kevin's prompt was written in.
+const String _sketchStyleFallback = 'journal';
 
-/// What the subject is said as where the prompt names it: chosen by Lovart from the passage, given after.
-const String _subject = 'the subject chosen from the passage below';
+/// The style field sketches are drawn in now: the header image style chosen at the head of the plugin's page
+/// (banners.dart [bannerPresetNow]; Kevin, 2026-11-04: "can we actually have the style of the thing follow the style for
+/// banners they select?"), so a note's banner and its sketches look one set; the field journal's where the header
+/// prompt is a person's own.
+String sketchStyleNow([PluginHost? via]) => (bannerPresetNow(via) ?? bannerPresets.firstWhere((p) => p.id == _sketchStyleFallback)).sketch;
 
-/// The house's sketch prompt (Kevin's, 2026-11-04), with [sketchSubjectSlot] where the subject goes.
-const String sketchStyleDefault = '''Create a detailed, hand-drawn naturalist's field journal illustration of **{subject}**, reminiscent of a 19th-century explorer's scientific sketchbook.
+/// What every sketch is asked as, round its [style] (Kevin's prompt, 2026-11-04, its style taken out to follow the
+/// header's): one whole object, isolated on a transparent ground, 4:5, no words.
+String sketchFrame(String style) => """Create one illustration of exactly ONE object: the subject chosen from the passage below. It is a small picture that sits beside that paragraph in a note, so it must read as a single isolated object.
 
-### Artistic Style
+Style: $style
 
-- Traditional botanical and scientific illustration combining fine sepia-brown pen-and-ink linework with delicate, layered watercolor washes.
-- Meticulous observational detail, organic imperfections, fine cross-hatching, stippling, and subtle variations in line weight.
-- Rich but naturalistic colors, with softly blended pigments, visible watercolor textures, and warm earthy undertones.
-- The appearance of an object carefully observed and illustrated by a traveling naturalist, balancing scientific accuracy with artistic beauty.
-- Authentic hand-painted character, with minor irregularities in pigment application and naturally imperfect ink strokes.
-- Avoid digital-looking gradients, heavy outlines, cartoon styling, photorealism, vector aesthetics, and overly polished rendering.
+Composition:
+- Show exactly one instance of the subject, in a natural three-quarter view that clearly shows its form and defining characteristics, as a single, complete, standalone object occupying about 70 to 80 percent of the frame.
+- Centre it with generous transparent space around its silhouette; never crop, truncate or hide any part of it.
+- Keep natural proportions, accurate structure and recognisable materials and textures.
+- No additional illustrations, alternative views, detail studies, close-ups, duplicates, cutaways, fragments or supplementary objects; no collection, reference sheet, diagram, collage or panels; no environment, props, pedestals or surfaces beneath it. The picture is the one subject and nothing else.
+- Keep the same visual language, density, lighting and placement across every subject, so the pictures of different objects feel like one cohesive collection.
 
-### Composition
+Text: no text, lettering, handwriting, captions, labels, titles, numbers, scientific names or annotations anywhere, except lettering that is genuinely, physically part of the subject itself (printed packaging, engraved markings), reproduced accurately and never invented.
 
-- Illustrate **exactly ONE instance of {subject}**, shown in a natural three-quarter view that clearly communicates its form and defining characteristics.
-- The subject must appear as a **single, complete, standalone object**, occupying approximately 70–80% of the composition.
-- Center the subject with generous transparent negative space surrounding its silhouette.
-- Preserve the complete silhouette of the subject without cropping, truncating, or obscuring any portion.
-- Maintain natural proportions, accurate structural details, and recognizable material textures.
-- **Do not include any additional illustrations, alternative views, detail studies, close-ups, duplicates, cutaways, fragments, or supplementary objects.**
-- Do not create a specimen collection, reference sheet, diagram, collage, or multi-panel composition.
-- Do not add environmental elements, props, pedestals, or surfaces beneath the subject.
-- The entire composition must consist exclusively of the single illustrated subject.
-
-### Consistency Requirements
-
-- Maintain the same visual language, illustration density, linework, watercolor treatment, lighting, and composition across every subject.
-- Use consistent warm sepia-brown ink for all outlines, fine details, cross-hatching, and stippling.
-- Preserve natural proportions, authentic material textures, and recognizable anatomical or structural characteristics.
-- Apply watercolor washes with consistent pigment density, tonal variation, and softly irregular edges.
-- Use gentle, naturalistic lighting to communicate volume without creating harsh highlights or artificial shadows.
-- Maintain a consistent balance between precise scientific observation and expressive hand-drawn character.
-- **Subject isolation rule:** Regardless of the subject's complexity, depict only one complete physical object. Never introduce additional objects or studies to explain its construction, anatomy, function, or appearance.
-- No decorative borders, frames, artificial aging, or unnecessary embellishments.
-
-### Text and Typography Restrictions (Strict)
-
-- Do not generate any text, lettering, handwriting, captions, labels, titles, numbers, or typographic elements anywhere in the image.
-- No scientific names, specimen identifiers, annotations, or written descriptions.
-- **Exception:** Text is permitted ONLY when it is a genuine, physically existing part of the subject itself, such as lettering printed on product packaging, engraved markings, or writing naturally present on the depicted object.
-- Do not invent, embellish, reinterpret, or add text that is not already part of the actual subject.
-- When authentic lettering is present, reproduce it accurately and integrate it naturally into the object's illustrated surface.
-- Retain the visual language of a scientific field journal through illustration, fine inkwork, and watercolor rather than written annotations.
-
-### Background and Output
-
-- **Fully transparent background with a true alpha channel (RGBA).**
-- The subject must be completely isolated against transparency.
-- No white paper, colored backdrop, shadows cast onto a surface, checkerboard pattern, or background texture.
-- No simulated transparency or solid-color backgrounds.
-- Preserve delicate watercolor edges, fine ink strokes, and translucent pigment details with clean alpha transparency.
-- Portrait **4:5 aspect ratio**, high resolution.
-- Position and scale the subject consistently so illustrations of different objects feel like part of the same cohesive collection.
-- Leave sufficient transparent padding around all sides for flexible placement in other designs.
-
-### Final Aesthetic
-
-An elegant, richly detailed watercolor-and-sepia-ink illustration of a **single isolated object**, rendered with the observational precision of a 19th-century naturalist's field journal.
-
-The illustration should resemble one carefully painted specimen extracted from an explorer's sketchbook, preserving the intimate, imperfect charm of traditional scientific illustration without including the surrounding page, written annotations, or supplementary studies.
-
-**Final output must contain exactly one complete illustrated subject on a genuinely transparent background, with no additional visual elements.**''';
+Background and output:
+- A fully transparent background with a true alpha channel (RGBA); the subject completely isolated against transparency.
+- No paper, coloured backdrop, cast shadow on a surface, checkerboard pattern, background texture, border or frame; no simulated transparency or solid-colour background.
+- Keep delicate edges and fine details clean against the transparency.
+- Portrait 4:5 aspect ratio, high resolution, with transparent padding on every side.""";
 
 /// One place in a note a sketch goes: after the paragraph whose last line is [line] (1-based), written [lastText].
 class SketchSpot {
@@ -259,15 +220,13 @@ String sketchCaption(SketchSpot spot) {
   return pictureCaption('Field sketch: $first…');
 }
 
-/// What Lovart is asked for [spot]: the sketch prompt ([template], else the house's) with the subject named as one it
-/// chooses, then how to choose it and the passage, the note's [title] for context, and [extra] on the end.
-String sketchPrompt(SketchSpot spot, {String title = '', String? template, String? extra}) {
-  final words = (template == null || template.trim().isEmpty) ? sketchStyleDefault : template.trim();
-  final filled = words.replaceAll(sketchSubjectSlot, _subject).replaceAll(_draftSlot, _subject);
+/// What Lovart is asked for [spot]: the sketch's frame round [style] (else the one chosen now, [sketchStyleNow]), then
+/// how to choose the subject and the passage, the note's [title] for context, and [extra] on the end.
+String sketchPrompt(SketchSpot spot, {String title = '', String? style, String? extra}) {
   final where = [if (title.isNotEmpty) 'a note titled “$title”', if (spot.heading.isNotEmpty) 'its section “${spot.heading}”'].join(', in ');
   return withLovartExtra(
     [
-      filled,
+      sketchFrame(style ?? sketchStyleNow()),
       '',
       'Choosing the subject: read the passage below and pick the single concrete, physical thing it names or most strongly evokes: an object, a tool, a plant, an animal, a dish, a building detail or an artifact. Where it names a real, specific thing, look up what that thing really looks like and draw it true to life. Where the passage is abstract, choose one tangible object that stands for its idea. Draw only that one thing.',
       if (where.isNotEmpty) 'The passage is from $where.',
@@ -322,19 +281,6 @@ bool sketchesOn([PluginHost? via]) => (via ?? host).storage.get<Object?>(sketche
 
 /// Switches it.
 void setSketches(bool on, [PluginHost? via]) => (via ?? host).storage.set(sketchesKey, on);
-
-/// The person's own sketch prompt, or null for the house's ([sketchStyleDefault]).
-String? sketchTemplate([PluginHost? via]) {
-  final Object? kept = (via ?? host).storage.get<Object?>(sketchPromptKey, null);
-  return kept is String && kept.trim().isNotEmpty ? kept : null;
-}
-
-/// Keeps it; empty, or the house's own words, is the house's again.
-void setSketchTemplate(String? words, [PluginHost? via]) {
-  final on = via ?? host;
-  final trimmed = words?.trim() ?? '';
-  trimmed.isEmpty || trimmed == sketchStyleDefault.trim() ? on.storage.remove(sketchPromptKey) : on.storage.set(sketchPromptKey, trimmed);
-}
 
 /// How many notes are remembered as given sketches: the newest.
 const int _doneKept = 2000;

@@ -85,7 +85,7 @@ Make one image.''';
 /// round a style of its own; choosing one writes it into "Header image prompt", where it can still be changed, and the
 /// one whose words the prompt holds is the one shown chosen. Painterly is the house's ([bannerStyleDefault]).
 class BannerPreset {
-  const BannerPreset({required this.id, required this.name, required this.blurb, required this.words});
+  const BannerPreset({required this.id, required this.name, required this.blurb, required this.words, required this.sketch});
 
   final String id;
   final String name;
@@ -95,6 +95,11 @@ class BannerPreset {
 
   /// The whole prompt, with [bannerNoteSlot] where the note goes.
   final String words;
+
+  /// The same style for one object on its own, for a field sketch beside a paragraph (sketches.dart; Kevin,
+  /// 2026-11-04: "can we actually have the style of the thing follow the style for banners they select?"): how it is
+  /// drawn, and nothing of the banner's frame or scene.
+  final String sketch;
 
   /// Its sample picture, a street in Tokyo drawn in this style (assets/plugins/lovart/styles).
   String get sample => 'assets/plugins/lovart/styles/$id.webp';
@@ -111,7 +116,13 @@ $finish No ghost, no mascot and no cartoon character: the things themselves tell
 Make one image.""";
 
 final List<BannerPreset> bannerPresets = [
-  const BannerPreset(id: 'painterly', name: 'Painterly', blurb: 'Realistic, with visible brushwork', words: bannerStyleDefault),
+  const BannerPreset(
+    id: 'painterly',
+    name: 'Painterly',
+    blurb: 'Realistic, with visible brushwork',
+    words: bannerStyleDefault,
+    sketch: 'A realistic, painterly illustration, highly detailed: true-to-life form, texture and light, rendered with visible, confident brushwork, like a fine editorial painting. Natural, rich colour and soft, believable lighting that gives it volume; real materials (stone, wood, glass, fabric, food) painted with care. Elegant and calm, never cartoonish, not photographic and not flat vector art.',
+  ),
   BannerPreset(
     id: 'pencil',
     name: 'Coloured pencil',
@@ -120,6 +131,7 @@ final List<BannerPreset> bannerPresets = [
       'A simple, loose coloured-pencil and watercolour drawing with very little detail: a few soft, light washes of watercolour and quick coloured-pencil lines over them, shapes suggested rather than drawn out, no fine detail, no small textures and no crisp edges, lots of bare white paper left showing around and between things. A light, airy, gentle children\'s-book feel in a few soft colours, simple and calm, never busy.',
       'Light and simple, mostly white paper with soft pencil and watercolour: not detailed, not realistic, not photographic and not painted in oils.',
     ),
+    sketch: 'A simple, loose coloured-pencil and watercolour drawing with very little detail: a few soft, light washes of watercolour and quick coloured-pencil lines over them, its shape suggested rather than drawn out, no fine detail, no small textures and no crisp edges. A light, airy, gentle children\'s-book feel in a few soft colours, simple and calm. Not realistic, not photographic and not painted in oils.',
   ),
   BannerPreset(
     id: 'journal',
@@ -129,6 +141,8 @@ final List<BannerPreset> bannerPresets = [
       'A hand-drawn naturalist\'s field-journal sketch, like a page from a 19th-century explorer\'s sketchbook: fine warm sepia-brown pen-and-ink linework with delicate cross-hatching, stippling and varied line weight, finished with a few light, translucent watercolour washes in soft, earthy, naturalistic colours that let the warm paper show through. Careful observation and true proportions with the charm of imperfect hand-drawn strokes and slightly irregular pigment. Not cartoonish, not photographic, no digital gradients, no heavy outlines, no vector look.',
       'Sepia ink and light watercolour washes on warm paper.',
     ),
+    // Kevin's naturalist prompt, the style it was first written in (2026-11-04).
+    sketch: 'A hand-drawn naturalist\'s field-journal illustration, like one specimen from a 19th-century explorer\'s scientific sketchbook: traditional botanical and scientific illustration in fine sepia-brown pen-and-ink linework with delicate, layered watercolour washes. Meticulous observational detail, organic imperfections, fine cross-hatching, stippling and subtle variations in line weight. Rich but naturalistic colours, softly blended pigments, visible watercolour texture and warm earthy undertones, with minor irregularities in pigment and naturally imperfect ink strokes. Warm sepia ink for every outline, detail, hatch and stipple. Not cartoonish, not photographic, no digital gradients, no heavy outlines, no vector look, not overly polished.',
   ),
   BannerPreset(
     id: 'photo',
@@ -138,6 +152,7 @@ final List<BannerPreset> bannerPresets = [
       'An ultra high definition, photorealistic image with no stylisation at all: true-to-life detail, materials, colour and light, sharp focus, a believable camera perspective and natural depth of field, like a professional travel photograph taken in good light.',
       'Photorealistic and ultra HD: no illustration style, no painterly or sketch effects, no filters.',
     ),
+    sketch: 'An ultra high definition, photorealistic image with no stylisation at all, like a professional studio product photograph cut out from its background: true-to-life detail, materials and colour, sharp focus, soft even light that gives it volume, a believable camera perspective. No illustration style, no painterly or sketch effects, no filters.',
   ),
 ];
 

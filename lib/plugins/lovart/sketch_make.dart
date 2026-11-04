@@ -25,7 +25,7 @@ import 'sketches.dart';
 
 /// One sketch asked of [lovart] for [spot], its paper cleared and kept: its name, or null where Lovart gave none.
 Future<String?> _sketch(LovartClient lovart, SketchSpot spot, String title, {PictureStore? into}) async {
-  final images = await lovart.generate(sketchPrompt(spot, title: title, template: sketchTemplate(), extra: lovartExtra()));
+  final images = await lovart.generate(sketchPrompt(spot, title: title, extra: lovartExtra()));
   if (images.isEmpty) return null;
   final clear = <Uint8List>[await clearPaper(images.first)];
   final names = await keepLovartImages(clear, into: into, prefix: sketchPrefix);

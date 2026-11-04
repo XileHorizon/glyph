@@ -3,6 +3,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/plugins/lovart/banners.dart' show bannerPresets;
 import 'package:ghost_md/plugins/lovart/keep.dart';
 import 'package:ghost_md/plugins/lovart/sketch_clear.dart';
 import 'package:ghost_md/plugins/lovart/sketches.dart';
@@ -99,19 +100,23 @@ void main() {
   });
 
   group('prompt', () {
-    test('the house’s words with the subject left to Lovart, then how to choose it and the passage', () {
+    test('the sketch’s frame round the style, then how to choose the subject and the passage', () {
       final spot = sketchSpots(['# N', '## Kitchen', para('Cast-iron', 50)].join('\n')).single;
-      final prompt = sketchPrompt(spot, title: 'Camp', extra: 'Muted colours.');
-      expect(prompt, isNot(contains(sketchSubjectSlot)));
-      expect(prompt, contains('illustration of **the subject chosen from the passage below**'));
+      final prompt = sketchPrompt(spot, title: 'Camp', style: 'In thick crayon.', extra: 'Muted colours.');
+      expect(prompt, startsWith('Create one illustration of exactly ONE object: the subject chosen from the passage below.'));
+      expect(prompt, contains('Style: In thick crayon.'));
+      expect(prompt, contains('true alpha channel'));
       expect(prompt, contains('The passage is from a note titled “Camp”, in its section “Kitchen”.'));
       expect(prompt, contains('The passage:\n${spot.passage}'));
       expect(prompt, endsWith('Make one image.\n\nMuted colours.'));
     });
 
-    test('a person’s own words may name the subject as the draft did, [SUBJECT]', () {
-      final spot = sketchSpots(['# N', para('Lamp', 50)].join('\n')).single;
-      expect(sketchPrompt(spot, template: 'A pencil drawing of [SUBJECT].'), startsWith('A pencil drawing of the subject chosen from the passage below.'));
+    test('every header style has a sketch style of its own, with none of the banner’s frame', () {
+      for (final preset in bannerPresets) {
+        expect(preset.sketch, isNotEmpty, reason: preset.id);
+        expect(preset.sketch, isNot(contains('16:9')), reason: preset.id);
+        expect(sketchFrame(preset.sketch), contains('Style: ${preset.sketch}'));
+      }
     });
   });
 
